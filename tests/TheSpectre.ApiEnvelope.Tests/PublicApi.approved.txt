@@ -1,0 +1,96 @@
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TheSpectre.ApiEnvelope.Tests")]
+namespace TheSpectre.ApiEnvelope
+{
+    public static class ApiEnvelopeWriter
+    {
+        public static void Write<T>(System.Text.Json.Utf8JsonWriter writer, TheSpectre.ApiEnvelope.ApiResponse<T> response, System.Text.Json.JsonSerializerOptions options) { }
+        public static byte[] WriteToUtf8Bytes<T>(TheSpectre.ApiEnvelope.ApiResponse<T> response, System.Text.Json.JsonSerializerOptions options) { }
+    }
+    public static class ApiResponse
+    {
+        public static TheSpectre.ApiEnvelope.ApiResponse<object?> Failure(string errorCode, string correlationId, int statusCode, string? message = null, System.Collections.Generic.IReadOnlyList<TheSpectre.ApiEnvelope.ErrorDetail>? details = null) { }
+        public static TheSpectre.ApiEnvelope.ApiResponse<T> Success<T>(T data, string correlationId, int statusCode = 200) { }
+    }
+    public sealed class ApiResponse<T> : TheSpectre.ApiEnvelope.IApiResponse
+    {
+        public ApiResponse() { }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+        [System.Text.Json.Serialization.JsonPropertyName("correlationId")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(6)]
+        public required string CorrelationId { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+        [System.Text.Json.Serialization.JsonPropertyName("data")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(3)]
+        public T Data { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        [System.Text.Json.Serialization.JsonPropertyName("details")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(7)]
+        public System.Collections.Generic.IReadOnlyList<TheSpectre.ApiEnvelope.ErrorDetail>? Details { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+        [System.Text.Json.Serialization.JsonPropertyName("errorCode")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(4)]
+        public string? ErrorCode { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+        [System.Text.Json.Serialization.JsonPropertyName("isSuccess")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(1)]
+        public required bool IsSuccess { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(5)]
+        public string? Message { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+        [System.Text.Json.Serialization.JsonPropertyName("statusCode")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(2)]
+        public required int StatusCode { get; init; }
+    }
+    public class AppException : System.Exception
+    {
+        public AppException(string errorCode, string? message = null, int statusCode = 400, System.Exception? innerException = null) { }
+        public AppException(string errorCode, int statusCode, System.Collections.Generic.IReadOnlyList<TheSpectre.ApiEnvelope.ErrorDetail> details, string? message = null, System.Exception? innerException = null) { }
+        public System.Collections.Generic.IReadOnlyList<TheSpectre.ApiEnvelope.ErrorDetail>? Details { get; }
+        public string ErrorCode { get; }
+        public int StatusCode { get; }
+    }
+    public static class ErrorCodes
+    {
+        public const string BadRequest = "BAD_REQUEST";
+        public const string Conflict = "CONFLICT";
+        public const string Forbidden = "FORBIDDEN";
+        public const string InternalError = "INTERNAL_ERROR";
+        public const string MethodNotAllowed = "METHOD_NOT_ALLOWED";
+        public const string NotFound = "NOT_FOUND";
+        public const string NotImplemented = "NOT_IMPLEMENTED";
+        public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
+        public const string Timeout = "TIMEOUT";
+        public const string TooManyRequests = "TOO_MANY_REQUESTS";
+        public const string Unauthorized = "UNAUTHORIZED";
+        public const string UnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE";
+        public const string ValidationFailed = "VALIDATION_FAILED";
+    }
+    public sealed class ErrorDetail
+    {
+        public ErrorDetail(string field, string errorCode, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null) { }
+        public string ErrorCode { get; }
+        public string Field { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, object?>? Params { get; }
+    }
+    public interface IApiResponse
+    {
+        string CorrelationId { get; }
+        string? ErrorCode { get; }
+        bool IsSuccess { get; }
+        int StatusCode { get; }
+    }
+    public static class ValidationErrorCodes
+    {
+        public const string Duplicate = "DUPLICATE";
+        public const string InvalidEmail = "INVALID_EMAIL";
+        public const string InvalidFormat = "INVALID_FORMAT";
+        public const string InvalidUrl = "INVALID_URL";
+        public const string NotEqual = "NOT_EQUAL";
+        public const string OutOfRange = "OUT_OF_RANGE";
+        public const string Required = "REQUIRED";
+        public const string TooLong = "TOO_LONG";
+        public const string TooShort = "TOO_SHORT";
+    }
+}
