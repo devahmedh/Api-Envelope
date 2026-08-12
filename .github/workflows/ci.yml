@@ -25,3 +25,24 @@ jobs:
 
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal
+
+  types:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: npm/thespectre-apienvelope-types
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify types against the golden files
+        run: npm test
+
+      - name: Fail if generated fixtures are stale
+        run: git diff --exit-code -- test/fixtures.generated.ts

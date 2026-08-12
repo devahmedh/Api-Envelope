@@ -1,0 +1,30 @@
+{
+  "name": "thespectre-apienvelope-types",
+  "version": "1.0.0",
+  "description": "TypeScript contract for the TheSpectre.ApiEnvelope unified API response envelope.",
+  "license": "MIT",
+  "types": "index.d.ts",
+  "files": [
+    "index.d.ts",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheSpectreDev/Api-Envelope.git"
+  },
+  "keywords": [
+    "api",
+    "envelope",
+    "response",
+    "types",
+    "typescript",
+    "aspnetcore"
+  ],
+  "scripts": {
+    "generate": "node scripts/generate-fixtures.mjs",
+    "test": "npm run generate && tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}
