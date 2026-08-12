@@ -1,0 +1,1 @@
+{"isSuccess":false,"statusCode":400,"data":null,"errorCode":"VALIDATION_FAILED","correlationId":"4bf92f3577b34da6a3ce929d0e0e4736","details":[{"field":"title","errorCode":"TOO_LONG","params":{"max":400}},{"field":"code","errorCode":"REQUIRED"}]}
