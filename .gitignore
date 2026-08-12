@@ -1,0 +1,10 @@
+bin/
+obj/
+artifacts/
+TestResults/
+.vs/
+.idea/
+*.user
+*.suo
+node_modules/
+*.tgz
