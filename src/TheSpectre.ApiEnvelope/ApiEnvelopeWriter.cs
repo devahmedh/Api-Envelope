@@ -77,6 +77,8 @@ public static class ApiEnvelopeWriter
         ApiResponse<T> response,
         JsonSerializerOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         var buffer = new ArrayBufferWriter<byte>();
 
         // Honour the caller's encoder so the envelope and its payload escape identically.
@@ -131,19 +133,33 @@ public static class ApiEnvelopeWriter
     /// <c>JsonSerializer.Serialize(value, options)</c> would have done for them anyway.
     /// <para>
     /// <see cref="JsonSerializerOptions.MakeReadOnly(bool)"/> itself requires runtime code
-    /// generation, so the call is gated behind <see cref="RuntimeFeature.IsDynamicCodeSupported"/>.
-    /// Under Native AOT that property is a compile-time constant <see langword="false"/>, so the
-    /// trimmer proves the guarded branch unreachable and removes it — the reflection-populating
-    /// call never ships in an AOT binary. An AOT app that never configured a resolver still
-    /// fails fast, just at <see cref="JsonSerializerOptions.TryGetTypeInfo"/> in
-    /// <see cref="WriteData{T}"/> instead of here.
+    /// generation, so the call is gated behind both
+    /// <see cref="RuntimeFeature.IsDynamicCodeSupported"/> and
+    /// <see cref="JsonSerializer.IsReflectionEnabledByDefault"/>. The first governs dynamic
+    /// code generation and is a compile-time constant <see langword="false"/> under Native AOT,
+    /// so the trimmer proves the guarded branch unreachable there and removes it entirely — the
+    /// reflection-populating call never ships in an AOT binary. The second governs whether
+    /// reflection-based serialization is actually legitimate in the host; it can be
+    /// <see langword="false"/> under <c>PublishTrimmed</c> even when dynamic code remains
+    /// supported (trimming without AOT), and in that case the reflection resolver must not be
+    /// installed, because the trimmer may already have removed the members of the consumer's
+    /// DTO that reflection would need — installing it anyway would silently serialize an
+    /// incomplete <c>data</c> object instead of failing loudly. A host in that state — trimmed,
+    /// not AOT-published, reflection disabled — that has not configured a
+    /// <c>TypeInfoResolver</c> for its DTOs must do so explicitly; this method will not paper
+    /// over that with reflection, and <see cref="WriteData{T}"/>'s
+    /// <see cref="JsonSerializerOptions.TryGetTypeInfo"/> check below fails fast instead.
     /// </para>
     /// </remarks>
     [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026:RequiresUnreferencedCode",
-        Justification = "Only reached when RuntimeFeature.IsDynamicCodeSupported is true; " +
-            "unreachable and trimmed away under Native AOT.")]
+        Justification = "Only reached when both RuntimeFeature.IsDynamicCodeSupported and " +
+            "JsonSerializer.IsReflectionEnabledByDefault are true. The residual risk this " +
+            "does not eliminate: a PublishTrimmed (non-AOT) host with reflection enabled but " +
+            "whose DTO members were already trimmed away will get an incomplete reflection " +
+            "resolver rather than a build-time error. Such a host must configure an explicit " +
+            "TypeInfoResolver for its DTOs; this call cannot detect that case.")]
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050:RequiresDynamicCode",
@@ -151,7 +167,7 @@ public static class ApiEnvelopeWriter
             "executes when dynamic code, and therefore reflection-based JSON, is supported.")]
     private static void EnsureResolverConfigured(JsonSerializerOptions options)
     {
-        if (RuntimeFeature.IsDynamicCodeSupported)
+        if (RuntimeFeature.IsDynamicCodeSupported && JsonSerializer.IsReflectionEnabledByDefault)
         {
             options.MakeReadOnly(populateMissingResolver: true);
         }

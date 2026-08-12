@@ -20,7 +20,11 @@ internal static class GoldenFile
         {
             Directory.CreateDirectory(RepositoryPaths.GoldenDirectory);
             File.WriteAllBytes(path, actualUtf8);
-            NUnit.Framework.Assert.Pass($"Golden file '{name}' was rewritten.");
+
+            // Inconclusive, never Pass. A rewriting run has verified nothing, and a stale
+            // UPDATE_GOLDENS=1 in a CI job or shell profile would otherwise turn the entire
+            // wire-contract suite green while checking nothing at all.
+            NUnit.Framework.Assert.Inconclusive($"Golden file '{name}' was rewritten.");
             return;
         }
 

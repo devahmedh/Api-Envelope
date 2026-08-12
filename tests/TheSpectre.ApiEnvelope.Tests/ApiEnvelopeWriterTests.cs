@@ -143,4 +143,31 @@ public sealed class ApiEnvelopeWriterTests
         Assert.That(positions, Is.All.GreaterThanOrEqualTo(0));
         Assert.That(positions, Is.Ordered.Ascending);
     }
+
+    [Test]
+    public void WriteToUtf8Bytes_ForEveryPermittedParamValueType_WritesExpectedJsonLiterals()
+    {
+        var detail = new ErrorDetail("field", "CODE", new Dictionary<string, object?>
+        {
+            ["text"] = "abc",
+            ["int"] = 400,
+            ["long"] = 9000000000L,
+            ["dec"] = 12.34m,
+            ["dbl"] = 1.5d,
+            ["flag"] = true,
+            ["nothing"] = null,
+        });
+
+        var json = Encoding.UTF8.GetString(ApiEnvelopeWriter.WriteToUtf8Bytes(
+            ApiResponse.Failure(ErrorCodes.ValidationFailed, TraceId, 400, details: new[] { detail }),
+            WebOptions));
+
+        Assert.That(json, Does.Contain("\"text\":\"abc\""));
+        Assert.That(json, Does.Contain("\"int\":400"));
+        Assert.That(json, Does.Contain("\"long\":9000000000"));
+        Assert.That(json, Does.Contain("\"dec\":12.34"));
+        Assert.That(json, Does.Contain("\"dbl\":1.5"));
+        Assert.That(json, Does.Contain("\"flag\":true"));
+        Assert.That(json, Does.Contain("\"nothing\":null"));
+    }
 }
