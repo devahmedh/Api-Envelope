@@ -75,6 +75,9 @@ public sealed class ErrorDetail
             }
         }
 
-        return parameters;
+        // Copy defensively. Returning the caller's instance would let them add an
+        // unsupported value after construction, reintroducing the very failure the
+        // constructor-time check exists to prevent.
+        return new Dictionary<string, object?>(parameters);
     }
 }

@@ -57,6 +57,18 @@ public sealed class ErrorDetailTests
     }
 
     [Test]
+    public void Constructor_CopiesParams_SoLaterCallerMutationCannotEscapeValidation()
+    {
+        var source = new Dictionary<string, object?> { ["max"] = 400 };
+        var detail = new ErrorDetail("title", "TOO_LONG", source);
+
+        source["when"] = DateTimeOffset.UtcNow;
+
+        Assert.That(detail.Params!.Count, Is.EqualTo(1));
+        Assert.That(detail.Params.ContainsKey("when"), Is.False);
+    }
+
+    [Test]
     public void Constructor_WithWhitespaceField_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() => new ErrorDetail("   ", "REQUIRED"));
