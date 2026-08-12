@@ -1,4 +1,3 @@
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TheSpectre.ApiEnvelope.Tests")]
 namespace TheSpectre.ApiEnvelope
 {
     public static class ApiEnvelopeWriter

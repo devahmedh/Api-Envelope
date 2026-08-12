@@ -1,0 +1,46 @@
+name: semver-guard
+
+on:
+  pull_request:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail if the wire contract changed without an explicit decision
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          base="origin/${{ github.event.pull_request.base.ref }}"
+          changed=$(git diff --name-only "$base"...HEAD -- \
+            tests/golden/ \
+            tests/TheSpectre.ApiEnvelope.Tests/PublicApi.approved.txt)
+
+          if [ -z "$changed" ]; then
+            echo "No wire-contract or public-API files changed."
+            exit 0
+          fi
+
+          echo "Wire-contract or public-API files changed:"
+          echo "$changed"
+
+          if printf '%s' "$PR_BODY" | grep -q 'BREAKING CHANGE:'; then
+            echo "Accepted: PR body contains a BREAKING CHANGE: footer."
+            exit 0
+          fi
+
+          case ",$PR_LABELS," in
+            *,semver:major,*|*,semver:minor,*)
+              echo "Accepted: PR carries an explicit semver label."
+              exit 0
+              ;;
+          esac
+
+          echo "::error::These files define the wire contract and the frozen public API."
+          echo "::error::Add a 'BREAKING CHANGE:' footer to the PR body, or a semver:major / semver:minor label."
+          exit 1

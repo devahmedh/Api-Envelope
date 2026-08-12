@@ -11,6 +11,13 @@ namespace TheSpectre.ApiEnvelope;
 /// reflection. The JSON attributes below exist so the shape stays correct when a consumer
 /// serializes the type directly — they defend against a host application's
 /// <c>PropertyNamingPolicy</c>, <c>DefaultIgnoreCondition</c> and property reordering.
+/// <para>
+/// Construct instances through <see cref="ApiResponse.Success{T}"/> and
+/// <see cref="ApiResponse.Failure"/>. Object-initialiser construction is permitted for
+/// deserialisation but does not enforce the success/error invariants — a success envelope
+/// carrying an <c>errorCode</c>, or a failure carrying <c>data</c>, matches neither member
+/// of the client's discriminated union.
+/// </para>
 /// </remarks>
 public sealed class ApiResponse<T> : IApiResponse
 {
@@ -67,8 +74,14 @@ public static class ApiResponse
     /// <param name="data">The payload.</param>
     /// <param name="correlationId">The correlation id for this request.</param>
     /// <param name="statusCode">The HTTP status code. Defaults to 200.</param>
-    public static ApiResponse<T> Success<T>(T data, string correlationId, int statusCode = 200) =>
-        new()
+    /// <exception cref="ArgumentException">
+    /// <paramref name="correlationId"/> is null, empty or whitespace.
+    /// </exception>
+    public static ApiResponse<T> Success<T>(T data, string correlationId, int statusCode = 200)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+
+        return new()
         {
             IsSuccess = true,
             StatusCode = statusCode,
@@ -76,20 +89,31 @@ public static class ApiResponse
             ErrorCode = null,
             CorrelationId = correlationId,
         };
+    }
 
     /// <summary>Creates an error envelope.</summary>
     /// <param name="errorCode">The stable error key.</param>
     /// <param name="correlationId">The correlation id for this request.</param>
     /// <param name="statusCode">The HTTP status code.</param>
     /// <param name="message">Diagnostics only. Never rendered to a user.</param>
-    /// <param name="details">Field-level failures, if any.</param>
+    /// <param name="details">
+    /// Field-level failures, if any. An empty list is normalised to <see langword="null"/>.
+    /// </param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="errorCode"/> or <paramref name="correlationId"/> is null, empty or
+    /// whitespace.
+    /// </exception>
     public static ApiResponse<object?> Failure(
         string errorCode,
         string correlationId,
         int statusCode,
         string? message = null,
-        IReadOnlyList<ErrorDetail>? details = null) =>
-        new()
+        IReadOnlyList<ErrorDetail>? details = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+
+        return new()
         {
             IsSuccess = false,
             StatusCode = statusCode,
@@ -97,6 +121,7 @@ public static class ApiResponse
             ErrorCode = errorCode,
             Message = message,
             CorrelationId = correlationId,
-            Details = details,
+            Details = details is { Count: > 0 } ? details : null,
         };
+    }
 }

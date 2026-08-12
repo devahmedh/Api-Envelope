@@ -9,10 +9,29 @@ const outFile = join(here, '..', 'test', 'fixtures.generated.ts');
 const toIdentifier = (fileName) =>
   basename(fileName, '.json').replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
 
+const EXPECTED = [
+  'error-409.json',
+  'error-500-development.json',
+  'error-500-production.json',
+  'notfound-404.json',
+  'success-200.json',
+  'success-204.json',
+  'unauthorized-401.json',
+  'validation-400.json',
+];
+
 const files = readdirSync(goldenDir).filter((f) => f.endsWith('.json')).sort();
 
-if (files.length === 0) {
-  throw new Error(`No golden files found in ${goldenDir}`);
+const missing = EXPECTED.filter((f) => !files.includes(f));
+const unexpected = files.filter((f) => !EXPECTED.includes(f));
+
+if (missing.length > 0 || unexpected.length > 0) {
+  throw new Error(
+    `Golden set mismatch in ${goldenDir}.` +
+      (missing.length ? ` Missing: ${missing.join(', ')}.` : '') +
+      (unexpected.length ? ` Unexpected: ${unexpected.join(', ')}.` : '') +
+      ' Adding or removing a golden is a wire-contract change: update EXPECTED deliberately.',
+  );
 }
 
 const body = files

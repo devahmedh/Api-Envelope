@@ -38,6 +38,17 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Verify version lockstep with the NuGet packages
+        working-directory: .
+        run: |
+          nuget_version=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
+          npm_version=$(node -p "require('./npm/thespectre-apienvelope-types/package.json').version")
+          echo "NuGet: $nuget_version  npm: $npm_version"
+          if [ "$nuget_version" != "$npm_version" ]; then
+            echo "::error::Version mismatch — all five artifacts must version in lockstep."
+            exit 1
+          fi
+
       - name: Install
         run: npm ci
 

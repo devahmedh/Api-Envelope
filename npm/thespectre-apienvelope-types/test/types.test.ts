@@ -25,6 +25,21 @@ validation400 satisfies ApiFailure;
 unauthorized401 satisfies ApiFailure;
 notfound404 satisfies ApiFailure;
 
+// `satisfies` above pins the LOWER bound: every required property is present and correctly
+// typed. It cannot catch an ADDED property, because excess-property checking only applies to
+// fresh object literals, not to identifiers. These assertions pin the upper bound: a new key
+// on the wire fails to compile here.
+type KeysSubsetOf<TActual, TExpected> = keyof TActual extends keyof TExpected ? true : never;
+
+export const _keys200: KeysSubsetOf<typeof success200, ApiSuccess<Sample>> = true;
+export const _keys204: KeysSubsetOf<typeof success204, ApiSuccess<null>> = true;
+export const _keys409: KeysSubsetOf<typeof error409, ApiFailure> = true;
+export const _keys500p: KeysSubsetOf<typeof error500Production, ApiFailure> = true;
+export const _keys500d: KeysSubsetOf<typeof error500Development, ApiFailure> = true;
+export const _keys400: KeysSubsetOf<typeof validation400, ApiFailure> = true;
+export const _keys401: KeysSubsetOf<typeof unauthorized401, ApiFailure> = true;
+export const _keys404: KeysSubsetOf<typeof notfound404, ApiFailure> = true;
+
 // The union must narrow on isSuccess without assertions.
 function consume(response: ApiResponse<Sample>): string {
   if (response.isSuccess) {

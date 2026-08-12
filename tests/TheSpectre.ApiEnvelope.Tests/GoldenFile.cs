@@ -10,7 +10,8 @@ internal static class GoldenFile
 
     /// <summary>
     /// Asserts that <paramref name="actualUtf8"/> matches the committed golden file
-    /// <paramref name="name"/> byte for byte. Set <c>UPDATE_GOLDENS=1</c> to rewrite it.
+    /// <paramref name="name"/> as UTF-8 text, ignoring a trailing newline. Set
+    /// <c>UPDATE_GOLDENS=1</c> to rewrite it.
     /// </summary>
     internal static void Assert(string name, byte[] actualUtf8)
     {

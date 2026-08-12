@@ -73,6 +73,10 @@ public static class ApiEnvelopeWriter
     /// <typeparam name="T">The payload type.</typeparam>
     /// <param name="response">The envelope to write.</param>
     /// <param name="options">The serializer options used for the payload only.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// No JSON contract is registered for the payload's runtime type.
+    /// </exception>
     public static byte[] WriteToUtf8Bytes<T>(
         ApiResponse<T> response,
         JsonSerializerOptions options)
@@ -122,6 +126,9 @@ public static class ApiEnvelopeWriter
     /// metadata.
     /// </summary>
     /// <remarks>
+    /// This call permanently freezes the caller's <see cref="JsonSerializerOptions"/>
+    /// instance — matching what <see cref="JsonSerializer.Serialize{TValue}(TValue, JsonSerializerOptions?)"/>
+    /// does, but an undocumented side effect on a public API advertised for standalone use.
     /// <see cref="JsonSerializerOptions.TryGetTypeInfo(Type, out System.Text.Json.Serialization.Metadata.JsonTypeInfo)"/>
     /// only consults a resolver that is already configured — unlike the
     /// <see cref="JsonSerializer.Serialize{TValue}(TValue, JsonSerializerOptions?)"/> family, it

@@ -54,7 +54,7 @@ public sealed class ErrorDetail
     /// <summary>
     /// Whether <paramref name="value"/> is a permitted <c>params</c> value type.
     /// </summary>
-    internal static bool IsSupportedParamValue(object? value) =>
+    private static bool IsSupportedParamValue(object? value) =>
         value is null or string or int or long or decimal or double or bool;
 
     private static IReadOnlyDictionary<string, object?>? Normalise(

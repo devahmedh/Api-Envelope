@@ -8,8 +8,4 @@
     <Description>The unified API response envelope contract: ApiResponse&lt;T&gt;, ErrorDetail, AppException and the exact wire format writer. Zero dependencies.</Description>
   </PropertyGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="TheSpectre.ApiEnvelope.Tests" />
-  </ItemGroup>
-
 </Project>
