@@ -1,3 +1,4 @@
+using System.Reflection;
 using NUnit.Framework;
 
 namespace TheSpectre.ApiEnvelope.Tests;
@@ -39,6 +40,24 @@ public sealed class AppExceptionTests
     }
 
     [Test]
+    public void Constructor_WithDetails_PreservesInnerException()
+    {
+        var inner = new InvalidOperationException("concurrency conflict");
+        var details = new[] { new ErrorDetail("title", "REQUIRED") };
+
+        var exception = new AppException("VALIDATION_FAILED", 400, details, "diagnostic", inner);
+
+        Assert.That(exception.InnerException, Is.SameAs(inner));
+    }
+
+    [Test]
+    public void Constructor_WithNullDetails_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new AppException("VALIDATION_FAILED", 400, null!));
+    }
+
+    [Test]
     public void Constructor_WithWhitespaceErrorCode_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() => new AppException("   "));
@@ -51,18 +70,37 @@ public sealed class AppExceptionTests
     }
 
     [Test]
-    public void ErrorCodes_AreScreamingSnakeCase()
+    public void ErrorCodes_EveryConstantIsScreamingSnakeCase()
     {
-        Assert.That(ErrorCodes.InternalError, Is.EqualTo("INTERNAL_ERROR"));
-        Assert.That(ErrorCodes.ValidationFailed, Is.EqualTo("VALIDATION_FAILED"));
-        Assert.That(ErrorCodes.NotFound, Is.EqualTo("NOT_FOUND"));
+        AssertEveryConstantIsScreamingSnakeCase(typeof(ErrorCodes), expectedCount: 13);
     }
 
     [Test]
-    public void ValidationErrorCodes_AreScreamingSnakeCase()
+    public void ValidationErrorCodes_EveryConstantIsScreamingSnakeCase()
     {
-        Assert.That(ValidationErrorCodes.Required, Is.EqualTo("REQUIRED"));
-        Assert.That(ValidationErrorCodes.TooLong, Is.EqualTo("TOO_LONG"));
-        Assert.That(ValidationErrorCodes.OutOfRange, Is.EqualTo("OUT_OF_RANGE"));
+        AssertEveryConstantIsScreamingSnakeCase(typeof(ValidationErrorCodes), expectedCount: 9);
+    }
+
+    private static void AssertEveryConstantIsScreamingSnakeCase(Type type, int expectedCount)
+    {
+        var constants = type
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field is { IsLiteral: true, IsInitOnly: false })
+            .ToArray();
+
+        Assert.That(
+            constants.Length,
+            Is.EqualTo(expectedCount),
+            $"{type.Name} should declare exactly {expectedCount} constants.");
+
+        foreach (var constant in constants)
+        {
+            var value = (string)constant.GetRawConstantValue()!;
+
+            Assert.That(
+                value,
+                Does.Match("^[A-Z][A-Z0-9_]*$"),
+                $"{type.Name}.{constant.Name} is not SCREAMING_SNAKE_CASE.");
+        }
     }
 }
