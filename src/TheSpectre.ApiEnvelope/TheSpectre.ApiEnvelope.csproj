@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>true</IsPackable>
+    <PackageId>TheSpectre.ApiEnvelope</PackageId>
+    <Description>The unified API response envelope contract: ApiResponse&lt;T&gt;, ErrorDetail, AppException and the exact wire format writer. Zero dependencies.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TheSpectre.ApiEnvelope.Tests" />
+  </ItemGroup>
+
+</Project>
