@@ -19,11 +19,14 @@ internal static class EnvelopeResponseWriter
         string errorCode,
         string? message,
         IReadOnlyList<ErrorDetail>? details,
-        JsonSerializerOptions json)
+        JsonSerializerOptions json,
+        string correlationIdHeaderName)
     {
+        var correlationId = context.GetCorrelationId();
+
         var response = ApiResponse.Failure(
             errorCode,
-            context.GetCorrelationId(),
+            correlationId,
             statusCode,
             message,
             details);
@@ -33,6 +36,12 @@ internal static class EnvelopeResponseWriter
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = JsonContentType;
         context.Response.ContentLength = payload.Length;
+
+        // The exception-handler middleware calls HttpResponse.Clear() before any
+        // IExceptionHandler runs, which wipes the header CorrelationIdMiddleware set before
+        // the request ever reached the endpoint. Re-set it here, in the one place every
+        // error envelope — thrown exception or bare status code alike — passes through.
+        context.Response.Headers[correlationIdHeaderName] = correlationId;
 
         await context.Response.Body.WriteAsync(payload, context.RequestAborted);
     }

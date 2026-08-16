@@ -42,8 +42,13 @@ public static class ApiEnvelopeApplicationBuilderExtensions
             // AddExceptionHandler<T> in AddApiEnvelope) handles every exception it sees. This
             // fallback delegate is only reached when that handler declines: an already-started
             // response, or a bypassed path. In both cases the correct behaviour is to do
-            // nothing, so this is a no-op rather than pulling in
-            // Microsoft.Extensions.Diagnostics.ProblemDetails via AddProblemDetails().
+            // nothing, so this is a no-op rather than calling AddProblemDetails() in
+            // AddApiEnvelope(). Two reasons, not "it would pull in a package" (it ships in the
+            // shared framework, same as everything else here): RFC 7807's human-readable
+            // title/detail fields are an explicit non-goal of this library — the whole point is
+            // a stable errorCode, not prose — and AddProblemDetails() is a process-wide
+            // registration, so calling it here would affect every IProblemDetailsService
+            // consumer in the app, not just this one fallback path.
             ExceptionHandler = static _ => Task.CompletedTask,
         });
         app.UseMiddleware<StatusCodeEnvelopeMiddleware>();

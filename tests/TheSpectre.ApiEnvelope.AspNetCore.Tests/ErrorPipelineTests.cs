@@ -1,5 +1,8 @@
 using System.Net;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -7,6 +10,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NUnit.Framework;
 
 namespace TheSpectre.ApiEnvelope.AspNetCore.Tests;
@@ -81,9 +86,15 @@ public sealed class ErrorPipelineTests
             Environments.Development);
 
         var response = await host.GetTestClient().GetAsync("/boom");
-        var envelope = await ReadEnvelopeAsync(response);
+        var body = await response.Content.ReadAsStringAsync();
+        var envelope = JsonDocument.Parse(body).RootElement;
 
         Assert.That(envelope.GetProperty("message").GetString(), Does.Contain("diagnostic detail"));
+        // A regression to exception.ToString() would still satisfy the assertion above (it
+        // contains the message too), so pin the negative case as well: only the message, never
+        // the type name or a stack frame, may reach the wire.
+        Assert.That(body, Does.Not.Contain("InvalidOperationException"));
+        Assert.That(body, Does.Not.Contain("   at "));
     }
 
     [Test]
@@ -118,6 +129,21 @@ public sealed class ErrorPipelineTests
         using var host = CreateHost(e => e.MapGet("/ok", () => "fine"));
 
         var response = await host.GetTestClient().GetAsync("/ok");
+
+        Assert.That(response.Headers.Contains("X-Correlation-Id"), Is.True);
+        Assert.That(response.Headers.GetValues("X-Correlation-Id").Single(), Is.Not.Empty);
+    }
+
+    [Test]
+    public async Task CorrelationId_IsEchoedOnAnErrorResponseToo()
+    {
+        // ExceptionHandlerMiddlewareImpl calls HttpResponse.Clear() before any IExceptionHandler
+        // runs, which wipes the header CorrelationIdMiddleware set before the request ever
+        // reached the endpoint. Only EnvelopeResponseWriter re-setting it survives that clear.
+        using var host = CreateHost(e => e.MapGet("/boom",
+            void () => throw new InvalidOperationException("x")));
+
+        var response = await host.GetTestClient().GetAsync("/boom");
 
         Assert.That(response.Headers.Contains("X-Correlation-Id"), Is.True);
         Assert.That(response.Headers.GetValues("X-Correlation-Id").Single(), Is.Not.Empty);
@@ -173,6 +199,63 @@ public sealed class ErrorPipelineTests
     }
 
     [Test]
+    public async Task NoEnvelopeEndpoint_IsNotEnvelopedEvenWhenItThrows()
+    {
+        // The endpoint that throws carries [NoEnvelope], but by the time
+        // ApiEnvelopeExceptionHandler runs, ExceptionHandlerMiddlewareImpl.ClearHttpContext()
+        // has already called SetEndpoint(null) — so EnvelopeBypass can only see it via the copy
+        // StatusCodeEnvelopeMiddleware stashes in HttpContext.Items during the unwind.
+        using var host = CreateHost(e => e
+            .MapGet("/raw-boom", void () => throw new InvalidOperationException("x"))
+            .WithMetadata(new NoEnvelopeAttribute()));
+
+        var response = await host.GetTestClient().GetAsync("/raw-boom");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.That(body, Does.Not.Contain("isSuccess"));
+    }
+
+    [Test]
+    public async Task BareUnauthorized_IsEnvelopedAsUnauthorized()
+    {
+        // The case StatusCodeEnvelopeMiddleware exists for: UseAuthorization's 401 challenge
+        // short-circuits before any endpoint (or filter) runs, so nothing but this middleware
+        // ever sees it.
+        var builder = new HostBuilder().ConfigureWebHost(web =>
+        {
+            web.UseTestServer();
+            web.UseEnvironment("Production");
+            web.ConfigureServices(services =>
+            {
+                services.AddRouting();
+                services.AddApiEnvelope();
+                services.AddAuthentication("Test")
+                    .AddScheme<AuthenticationSchemeOptions, NoOpAuthenticationHandler>("Test", null);
+                services.AddAuthorization();
+            });
+            web.Configure(app =>
+            {
+                app.UseApiEnvelope();
+                app.UseRouting();
+                app.UseAuthentication();
+                app.UseAuthorization();
+                app.UseEndpoints(endpoints => endpoints
+                    .MapGet("/secure", () => "secret")
+                    .RequireAuthorization());
+            });
+        });
+
+        using var host = builder.Start();
+
+        var response = await host.GetTestClient().GetAsync("/secure");
+        var envelope = await ReadEnvelopeAsync(response);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+        Assert.That(envelope.GetProperty("isSuccess").GetBoolean(), Is.False);
+        Assert.That(envelope.GetProperty("errorCode").GetString(), Is.EqualTo(ErrorCodes.Unauthorized));
+    }
+
+    [Test]
     public async Task MessageVisibilityNever_SuppressesTheMessageEvenInDevelopment()
     {
         using var host = CreateHost(
@@ -184,5 +267,18 @@ public sealed class ErrorPipelineTests
         var envelope = await ReadEnvelopeAsync(response);
 
         Assert.That(envelope.TryGetProperty("message", out _), Is.False);
+    }
+
+    // Always declines to authenticate, so RequireAuthorization()'s default challenge runs —
+    // which, with no cookie or OAuth redirect configured, is a bare 401 with an empty body.
+    // That bare response is exactly what StatusCodeEnvelopeMiddleware exists to envelope.
+    private sealed class NoOpAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+            => Task.FromResult(AuthenticateResult.NoResult());
     }
 }

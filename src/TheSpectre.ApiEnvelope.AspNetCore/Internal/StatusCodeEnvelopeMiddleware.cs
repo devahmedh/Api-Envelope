@@ -28,7 +28,23 @@ internal sealed class StatusCodeEnvelopeMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        await _next(context);
+        try
+        {
+            await _next(context);
+        }
+        finally
+        {
+            // This middleware sits between the exception handler and UseRouting, so it is the
+            // last point in the pipeline where the endpoint UseRouting matched is still visible
+            // when the endpoint throws: ExceptionHandlerMiddlewareImpl.ClearHttpContext() calls
+            // SetEndpoint(null) before any IExceptionHandler runs. A finally block executes
+            // during that unwind too (not just on normal return), so this is the one place both
+            // paths — a bare status code and a thrown exception — can stash it.
+            if (context.GetEndpoint() is { } endpoint)
+            {
+                context.Items[EnvelopeBypass.EndpointItemsKey] = endpoint;
+            }
+        }
 
         // HasStarted == false proves no bytes were written: there is nothing to buffer and
         // nothing to sniff, so this can never corrupt a response another component produced.
@@ -46,6 +62,7 @@ internal sealed class StatusCodeEnvelopeMiddleware
             StatusCodeErrorCodes.ForStatus(context.Response.StatusCode),
             message: null,
             details: null,
-            _json.Value.SerializerOptions);
+            _json.Value.SerializerOptions,
+            _options.CorrelationIdHeaderName);
     }
 }

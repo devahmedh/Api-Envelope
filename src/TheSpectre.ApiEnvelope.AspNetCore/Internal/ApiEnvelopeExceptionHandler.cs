@@ -44,8 +44,23 @@ internal sealed class ApiEnvelopeExceptionHandler : IExceptionHandler
             return true;
         }
 
-        if (context.Response.HasStarted || EnvelopeBypass.ShouldBypass(context, _options))
+        if (context.Response.HasStarted)
         {
+            return false;
+        }
+
+        if (EnvelopeBypass.ShouldBypass(context, _options))
+        {
+            // Declining to envelope must not mean declining to record the failure: without
+            // this, an exception on an excluded path (/health, /metrics, a [NoEnvelope]
+            // endpoint) would leave no trace anywhere this library controls.
+            _logger.LogWarning(
+                exception,
+                "Request {Method} {Path} failed with an unhandled exception on a bypassed path. CorrelationId {CorrelationId}.",
+                context.Request.Method,
+                context.Request.Path,
+                context.GetCorrelationId());
+
             return false;
         }
 
@@ -65,7 +80,8 @@ internal sealed class ApiEnvelopeExceptionHandler : IExceptionHandler
             errorCode,
             ResolveMessage(exception),
             (exception as AppException)?.Details,
-            _json.Value.SerializerOptions);
+            _json.Value.SerializerOptions,
+            _options.CorrelationIdHeaderName);
 
         return true;
     }

@@ -10,6 +10,7 @@ namespace TheSpectre.ApiEnvelope.AspNetCore.Tests;
 public sealed class EnvelopeResponseWriterTests
 {
     private const string TraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    private const string CorrelationIdHeaderName = "X-Correlation-Id";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -33,7 +34,7 @@ public sealed class EnvelopeResponseWriterTests
         var context = CreateContext();
 
         await EnvelopeResponseWriter.WriteAsync(
-            context, 409, "PROJECT_CODE_TAKEN", "diagnostic", null, Json);
+            context, 409, "PROJECT_CODE_TAKEN", "diagnostic", null, Json, CorrelationIdHeaderName);
 
         Assert.That(context.Response.StatusCode, Is.EqualTo(409));
         Assert.That(context.Response.ContentType, Is.EqualTo("application/json; charset=utf-8"));
@@ -49,7 +50,7 @@ public sealed class EnvelopeResponseWriterTests
         var context = CreateContext();
 
         await EnvelopeResponseWriter.WriteAsync(
-            context, 500, ErrorCodes.InternalError, null, null, Json);
+            context, 500, ErrorCodes.InternalError, null, null, Json, CorrelationIdHeaderName);
 
         Assert.That(ReadBody(context), Does.Not.Contain("\"message\""));
     }
@@ -61,7 +62,7 @@ public sealed class EnvelopeResponseWriterTests
         var details = new[] { new ErrorDetail("title", ValidationErrorCodes.Required) };
 
         await EnvelopeResponseWriter.WriteAsync(
-            context, 400, ErrorCodes.ValidationFailed, null, details, Json);
+            context, 400, ErrorCodes.ValidationFailed, null, details, Json, CorrelationIdHeaderName);
 
         Assert.That(ReadBody(context), Does.Contain(
             "\"details\":[{\"field\":\"title\",\"errorCode\":\"REQUIRED\"}]"));
