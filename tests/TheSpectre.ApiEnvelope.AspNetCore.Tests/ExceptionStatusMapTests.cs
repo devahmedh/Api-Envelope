@@ -50,14 +50,28 @@ public sealed class ExceptionStatusMapTests
     }
 
     [Test]
-    public void Resolve_ForBadHttpRequestException_UsesItsOwnStatus()
+    public void Resolve_ForBadHttpRequestException_UsesItsOwnStatusAndTheMatchingKey()
     {
         var exception = new BadHttpRequestException("malformed", StatusCodes.Status413PayloadTooLarge);
 
         var (status, errorCode) = ExceptionStatusMap.Resolve(exception, Options);
 
         Assert.That(status, Is.EqualTo(StatusCodes.Status413PayloadTooLarge));
-        Assert.That(errorCode, Is.EqualTo(ErrorCodes.BadRequest));
+        Assert.That(errorCode, Is.EqualTo(ErrorCodes.PayloadTooLarge));
+    }
+
+    [Test]
+    public void Resolve_ForBadHttpRequestException_ProducesTheSameKeyAsABareResponseOfThatStatus()
+    {
+        // One status code must mean one error key, whichever path produced it.
+        foreach (var statusCode in new[] { 400, 413, 415, 431 })
+        {
+            var exception = new BadHttpRequestException("malformed", statusCode);
+
+            var (_, errorCode) = ExceptionStatusMap.Resolve(exception, Options);
+
+            Assert.That(errorCode, Is.EqualTo(StatusCodeErrorCodes.ForStatus(statusCode)));
+        }
     }
 
     [Test]

@@ -17,7 +17,11 @@ internal static class ExceptionStatusMap
 
         if (exception is BadHttpRequestException badRequest)
         {
-            return (badRequest.StatusCode, ErrorCodes.BadRequest);
+            // Route through the same table as everything else. Hard-coding BadRequest here
+            // would make a thrown BadHttpRequestException(413) emit BAD_REQUEST while a
+            // routing-level 413 emits PAYLOAD_TOO_LARGE — one status, two keys, depending on
+            // which path produced it. That is the branching this library exists to remove.
+            return (badRequest.StatusCode, StatusCodeErrorCodes.ForStatus(badRequest.StatusCode));
         }
 
         var mapped = FindMostDerivedMapping(exception.GetType(), options);
