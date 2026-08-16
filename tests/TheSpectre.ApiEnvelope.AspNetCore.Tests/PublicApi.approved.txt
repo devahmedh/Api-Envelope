@@ -1,0 +1,36 @@
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TheSpectre.ApiEnvelope.AspNetCore.Tests")]
+namespace TheSpectre.ApiEnvelope.AspNetCore
+{
+    public static class ApiEnvelopeApplicationBuilderExtensions
+    {
+        public static Microsoft.AspNetCore.Builder.IApplicationBuilder UseApiEnvelope(this Microsoft.AspNetCore.Builder.IApplicationBuilder app) { }
+    }
+    public sealed class ApiEnvelopeOptions
+    {
+        public ApiEnvelopeOptions() { }
+        public string CorrelationIdHeaderName { get; set; }
+        public System.Collections.Generic.IDictionary<System.Type, int> ExceptionStatusCodes { get; }
+        public System.Collections.Generic.IList<Microsoft.AspNetCore.Http.PathString> ExcludedPathPrefixes { get; }
+        public TheSpectre.ApiEnvelope.AspNetCore.MessageVisibility MessageVisibility { get; set; }
+    }
+    public static class ApiEnvelopeServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddApiEnvelope(this Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddApiEnvelope(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<TheSpectre.ApiEnvelope.AspNetCore.ApiEnvelopeOptions> configure) { }
+    }
+    public static class HttpContextCorrelationIdExtensions
+    {
+        public static string GetCorrelationId(this Microsoft.AspNetCore.Http.HttpContext context) { }
+    }
+    public enum MessageVisibility
+    {
+        Never = 0,
+        DevelopmentOnly = 1,
+        Always = 2,
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, Inherited=true)]
+    public sealed class NoEnvelopeAttribute : System.Attribute
+    {
+        public NoEnvelopeAttribute() { }
+    }
+}
