@@ -1,4 +1,4 @@
-import type { ApiResponse, ApiFailure, ApiSuccess, ErrorDetail } from '../index';
+import type { ApiResponse, ApiFailure, ApiSuccess, ErrorDetail, PagedResult } from '../index';
 import {
   success200,
   success204,
@@ -8,6 +8,7 @@ import {
   validation400,
   unauthorized401,
   notfound404,
+  successPaged200,
 } from './fixtures.generated';
 
 interface Sample {
@@ -24,6 +25,7 @@ error500Development satisfies ApiFailure;
 validation400 satisfies ApiFailure;
 unauthorized401 satisfies ApiFailure;
 notfound404 satisfies ApiFailure;
+successPaged200 satisfies ApiSuccess<PagedResult<Sample>>;
 
 // `satisfies` above pins the LOWER bound: every required property is present and correctly
 // typed. It cannot catch an ADDED property, because excess-property checking only applies to
@@ -39,11 +41,12 @@ export const _keys500d: KeysSubsetOf<typeof error500Development, ApiFailure> = t
 export const _keys400: KeysSubsetOf<typeof validation400, ApiFailure> = true;
 export const _keys401: KeysSubsetOf<typeof unauthorized401, ApiFailure> = true;
 export const _keys404: KeysSubsetOf<typeof notfound404, ApiFailure> = true;
+export const _keysPaged200: KeysSubsetOf<typeof successPaged200, ApiSuccess<PagedResult<Sample>>> = true;
 
 // The union must narrow on isSuccess without assertions.
 function consume(response: ApiResponse<Sample>): string {
   if (response.isSuccess) {
-    const name: string = response.data.name;
+    const name: string = response.result.name;
     return name;
   }
 
@@ -58,18 +61,18 @@ consume(success200);
 export const invalidSuccess: ApiSuccess<Sample> = {
   isSuccess: true,
   statusCode: 200,
-  data: { id: 1, name: 'x' },
+  result: { id: 1, name: 'x' },
   // @ts-expect-error errorCode must be null on ApiSuccess
   errorCode: 'SOMETHING',
   correlationId: 'c',
 };
 
-// A failure must not be allowed to carry data.
+// A failure must not be allowed to carry a result.
 export const invalidFailure: ApiFailure = {
   isSuccess: false,
   statusCode: 400,
-  // @ts-expect-error data must be null on ApiFailure
-  data: { id: 1 },
+  // @ts-expect-error result must be null on ApiFailure
+  result: { id: 1 },
   errorCode: 'BAD_REQUEST',
   correlationId: 'c',
 };

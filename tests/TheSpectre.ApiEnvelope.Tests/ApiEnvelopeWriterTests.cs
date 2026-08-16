@@ -98,6 +98,19 @@ public sealed class ApiEnvelopeWriterTests
     }
 
     [Test]
+    public void WriteToUtf8Bytes_ForSuccessWithPagedResult_MatchesGolden()
+    {
+        var page = new PagedResult<Sample>(
+            new[] { new Sample(3, "C"), new Sample(4, "D") },
+            new PaginationData(2, 2, 57));
+
+        var response = ApiResponse.Success(page, TraceId);
+
+        GoldenFile.Assert("success-paged-200.json",
+            ApiEnvelopeWriter.WriteToUtf8Bytes(response, WebOptions));
+    }
+
+    [Test]
     public void WriteToUtf8Bytes_IgnoresHostNamingPolicyForEnvelopeProperties()
     {
         var options = new JsonSerializerOptions { PropertyNamingPolicy = null };
@@ -106,7 +119,7 @@ public sealed class ApiEnvelopeWriterTests
             ApiEnvelopeWriter.WriteToUtf8Bytes(
                 ApiResponse.Success(new Sample(1, "x"), TraceId), options));
 
-        Assert.That(json, Does.StartWith("{\"isSuccess\":true,\"statusCode\":200,\"data\":"));
+        Assert.That(json, Does.StartWith("{\"isSuccess\":true,\"statusCode\":200,\"result\":"));
     }
 
     [Test]
@@ -134,7 +147,7 @@ public sealed class ApiEnvelopeWriterTests
 
         var order = new[]
         {
-            "\"isSuccess\"", "\"statusCode\"", "\"data\"", "\"errorCode\"",
+            "\"isSuccess\"", "\"statusCode\"", "\"result\"", "\"errorCode\"",
             "\"message\"", "\"correlationId\"", "\"details\"",
         };
 

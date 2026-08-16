@@ -16,6 +16,7 @@ const EXPECTED = [
   'notfound-404.json',
   'success-200.json',
   'success-204.json',
+  'success-paged-200.json',
   'unauthorized-401.json',
   'validation-400.json',
 ];

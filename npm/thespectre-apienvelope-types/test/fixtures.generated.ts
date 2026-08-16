@@ -3,7 +3,7 @@
 export const error409 = {
   "isSuccess": false,
   "statusCode": 409,
-  "data": null,
+  "result": null,
   "errorCode": "PROJECT_CODE_TAKEN",
   "message": "Project code PERMIT already exists in this tenant.",
   "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736"
@@ -12,7 +12,7 @@ export const error409 = {
 export const error500Development = {
   "isSuccess": false,
   "statusCode": 500,
-  "data": null,
+  "result": null,
   "errorCode": "INTERNAL_ERROR",
   "message": "Object reference not set to an instance of an object.",
   "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736"
@@ -21,7 +21,7 @@ export const error500Development = {
 export const error500Production = {
   "isSuccess": false,
   "statusCode": 500,
-  "data": null,
+  "result": null,
   "errorCode": "INTERNAL_ERROR",
   "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736"
 } as const;
@@ -29,7 +29,7 @@ export const error500Production = {
 export const notfound404 = {
   "isSuccess": false,
   "statusCode": 404,
-  "data": null,
+  "result": null,
   "errorCode": "NOT_FOUND",
   "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736"
 } as const;
@@ -37,7 +37,7 @@ export const notfound404 = {
 export const success200 = {
   "isSuccess": true,
   "statusCode": 200,
-  "data": {
+  "result": {
     "id": 42,
     "name": "Ahmed"
   },
@@ -48,7 +48,34 @@ export const success200 = {
 export const success204 = {
   "isSuccess": true,
   "statusCode": 204,
-  "data": null,
+  "result": null,
+  "errorCode": null,
+  "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736"
+} as const;
+
+export const successPaged200 = {
+  "isSuccess": true,
+  "statusCode": 200,
+  "result": {
+    "data": [
+      {
+        "id": 3,
+        "name": "C"
+      },
+      {
+        "id": 4,
+        "name": "D"
+      }
+    ],
+    "pagination": {
+      "currentPage": 2,
+      "pageSize": 2,
+      "rowCount": 57,
+      "pageCount": 29,
+      "firstRowOnPage": 3,
+      "lastRowOnPage": 4
+    }
+  },
   "errorCode": null,
   "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736"
 } as const;
@@ -56,7 +83,7 @@ export const success204 = {
 export const unauthorized401 = {
   "isSuccess": false,
   "statusCode": 401,
-  "data": null,
+  "result": null,
   "errorCode": "UNAUTHORIZED",
   "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736"
 } as const;
@@ -64,7 +91,7 @@ export const unauthorized401 = {
 export const validation400 = {
   "isSuccess": false,
   "statusCode": 400,
-  "data": null,
+  "result": null,
   "errorCode": "VALIDATION_FAILED",
   "correlationId": "4bf92f3577b34da6a3ce929d0e0e4736",
   "details": [

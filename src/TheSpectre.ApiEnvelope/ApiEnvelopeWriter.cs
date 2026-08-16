@@ -11,7 +11,7 @@ namespace TheSpectre.ApiEnvelope;
 /// <remarks>
 /// The envelope's own properties are written directly, so no reflection is involved and the
 /// host application's naming policy, ignore condition and property ordering cannot affect
-/// them. Only <c>data</c> is delegated to the caller's <see cref="JsonSerializerOptions"/>,
+/// them. Only <c>result</c> is delegated to the caller's <see cref="JsonSerializerOptions"/>,
 /// resolved through <see cref="JsonSerializerOptions.TryGetTypeInfo(Type, out System.Text.Json.Serialization.Metadata.JsonTypeInfo)"/>.
 /// Under Native AOT that resolves the consumer's source-generated contract for the payload
 /// type they are already returning, so no
@@ -42,8 +42,8 @@ public static class ApiEnvelopeWriter
         writer.WriteBoolean("isSuccess", response.IsSuccess);
         writer.WriteNumber("statusCode", response.StatusCode);
 
-        writer.WritePropertyName("data");
-        WriteData(writer, response.Data, options);
+        writer.WritePropertyName("result");
+        WriteResult(writer, response.Result, options);
 
         if (response.ErrorCode is null)
         {
@@ -87,7 +87,7 @@ public static class ApiEnvelopeWriter
 
         // Honour the caller's encoder so the envelope and its payload escape identically.
         // Without this, an app that configured a relaxed encoder would get relaxed escaping
-        // in `data` but default escaping in `message` — two rules in one document.
+        // in `result` but default escaping in `message` — two rules in one document.
         var writerOptions = new JsonWriterOptions { Encoder = options.Encoder };
 
         using (var writer = new Utf8JsonWriter(buffer, writerOptions))
@@ -98,15 +98,15 @@ public static class ApiEnvelopeWriter
         return buffer.WrittenSpan.ToArray();
     }
 
-    private static void WriteData<T>(Utf8JsonWriter writer, T? data, JsonSerializerOptions options)
+    private static void WriteResult<T>(Utf8JsonWriter writer, T? result, JsonSerializerOptions options)
     {
-        if (data is null)
+        if (result is null)
         {
             writer.WriteNullValue();
             return;
         }
 
-        var runtimeType = data.GetType();
+        var runtimeType = result.GetType();
 
         EnsureResolverConfigured(options);
 
@@ -118,7 +118,7 @@ public static class ApiEnvelopeWriter
                 "to the JsonSerializerContext registered with ConfigureHttpJsonOptions.");
         }
 
-        JsonSerializer.Serialize(writer, data, typeInfo);
+        JsonSerializer.Serialize(writer, result, typeInfo);
     }
 
     /// <summary>
@@ -151,10 +151,10 @@ public static class ApiEnvelopeWriter
     /// supported (trimming without AOT), and in that case the reflection resolver must not be
     /// installed, because the trimmer may already have removed the members of the consumer's
     /// DTO that reflection would need — installing it anyway would silently serialize an
-    /// incomplete <c>data</c> object instead of failing loudly. A host in that state — trimmed,
+    /// incomplete <c>result</c> object instead of failing loudly. A host in that state — trimmed,
     /// not AOT-published, reflection disabled — that has not configured a
     /// <c>TypeInfoResolver</c> for its DTOs must do so explicitly; this method will not paper
-    /// over that with reflection, and <see cref="WriteData{T}"/>'s
+    /// over that with reflection, and <see cref="WriteResult{T}"/>'s
     /// <see cref="JsonSerializerOptions.TryGetTypeInfo"/> check below fails fast instead.
     /// </para>
     /// </remarks>

@@ -5,7 +5,7 @@ namespace TheSpectre.ApiEnvelope;
 /// <summary>
 /// The unified response envelope. Every response — success and error alike — uses this shape.
 /// </summary>
-/// <typeparam name="T">The payload type carried in <see cref="Data"/>.</typeparam>
+/// <typeparam name="T">The payload type carried in <see cref="Result"/>.</typeparam>
 /// <remarks>
 /// On the HTTP path this type is written by <c>ApiEnvelopeWriter</c> rather than by
 /// reflection. The JSON attributes below exist so the shape stays correct when a consumer
@@ -15,7 +15,7 @@ namespace TheSpectre.ApiEnvelope;
 /// Construct instances through <see cref="ApiResponse.Success{T}"/> and
 /// <see cref="ApiResponse.Failure"/>. Object-initialiser construction is permitted for
 /// deserialisation but does not enforce the success/error invariants — a success envelope
-/// carrying an <c>errorCode</c>, or a failure carrying <c>data</c>, matches neither member
+/// carrying an <c>errorCode</c>, or a failure carrying <c>result</c>, matches neither member
 /// of the client's discriminated union.
 /// </para>
 /// </remarks>
@@ -34,10 +34,10 @@ public sealed class ApiResponse<T> : IApiResponse
     public required int StatusCode { get; init; }
 
     /// <summary>The payload on success; <see langword="null"/> on error. Always present.</summary>
-    [JsonPropertyName("data")]
+    [JsonPropertyName("result")]
     [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public T? Data { get; init; }
+    public T? Result { get; init; }
 
     /// <summary>The stable error key the client switches on. Always present.</summary>
     [JsonPropertyName("errorCode")]
@@ -71,13 +71,13 @@ public static class ApiResponse
 {
     /// <summary>Creates a success envelope.</summary>
     /// <typeparam name="T">The payload type.</typeparam>
-    /// <param name="data">The payload.</param>
+    /// <param name="result">The payload.</param>
     /// <param name="correlationId">The correlation id for this request.</param>
     /// <param name="statusCode">The HTTP status code. Defaults to 200.</param>
     /// <exception cref="ArgumentException">
     /// <paramref name="correlationId"/> is null, empty or whitespace.
     /// </exception>
-    public static ApiResponse<T> Success<T>(T data, string correlationId, int statusCode = 200)
+    public static ApiResponse<T> Success<T>(T result, string correlationId, int statusCode = 200)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
 
@@ -85,7 +85,7 @@ public static class ApiResponse
         {
             IsSuccess = true,
             StatusCode = statusCode,
-            Data = data,
+            Result = result,
             ErrorCode = null,
             CorrelationId = correlationId,
         };
@@ -117,7 +117,7 @@ public static class ApiResponse
         {
             IsSuccess = false,
             StatusCode = statusCode,
-            Data = null,
+            Result = null,
             ErrorCode = errorCode,
             Message = message,
             CorrelationId = correlationId,

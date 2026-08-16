@@ -8,7 +8,7 @@ namespace TheSpectre.ApiEnvelope
     public static class ApiResponse
     {
         public static TheSpectre.ApiEnvelope.ApiResponse<object?> Failure(string errorCode, string correlationId, int statusCode, string? message = null, System.Collections.Generic.IReadOnlyList<TheSpectre.ApiEnvelope.ErrorDetail>? details = null) { }
-        public static TheSpectre.ApiEnvelope.ApiResponse<T> Success<T>(T data, string correlationId, int statusCode = 200) { }
+        public static TheSpectre.ApiEnvelope.ApiResponse<T> Success<T>(T result, string correlationId, int statusCode = 200) { }
     }
     public sealed class ApiResponse<T> : TheSpectre.ApiEnvelope.IApiResponse
     {
@@ -17,10 +17,6 @@ namespace TheSpectre.ApiEnvelope
         [System.Text.Json.Serialization.JsonPropertyName("correlationId")]
         [System.Text.Json.Serialization.JsonPropertyOrder(6)]
         public required string CorrelationId { get; init; }
-        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
-        [System.Text.Json.Serialization.JsonPropertyName("data")]
-        [System.Text.Json.Serialization.JsonPropertyOrder(3)]
-        public T Data { get; init; }
         [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         [System.Text.Json.Serialization.JsonPropertyName("details")]
         [System.Text.Json.Serialization.JsonPropertyOrder(7)]
@@ -37,6 +33,10 @@ namespace TheSpectre.ApiEnvelope
         [System.Text.Json.Serialization.JsonPropertyName("message")]
         [System.Text.Json.Serialization.JsonPropertyOrder(5)]
         public string? Message { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+        [System.Text.Json.Serialization.JsonPropertyName("result")]
+        [System.Text.Json.Serialization.JsonPropertyOrder(3)]
+        public T Result { get; init; }
         [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
         [System.Text.Json.Serialization.JsonPropertyName("statusCode")]
         [System.Text.Json.Serialization.JsonPropertyOrder(2)]
@@ -79,6 +79,27 @@ namespace TheSpectre.ApiEnvelope
         string? ErrorCode { get; }
         bool IsSuccess { get; }
         int StatusCode { get; }
+    }
+    public static class PagedResultExtensions
+    {
+        public static TheSpectre.ApiEnvelope.PagedResult<T> GetPaged<T>(this System.Collections.Generic.IEnumerable<T> source, int page, int pageSize) { }
+        public static TheSpectre.ApiEnvelope.PagedResult<T> GetPaged<T>(this System.Linq.IQueryable<T> query, int page, int pageSize) { }
+    }
+    public sealed class PagedResult<T> : System.IEquatable<TheSpectre.ApiEnvelope.PagedResult<T>>
+    {
+        public PagedResult(System.Collections.Generic.IReadOnlyList<T> Data, TheSpectre.ApiEnvelope.PaginationData Pagination) { }
+        public System.Collections.Generic.IReadOnlyList<T> Data { get; init; }
+        public TheSpectre.ApiEnvelope.PaginationData Pagination { get; init; }
+    }
+    public sealed class PaginationData : System.IEquatable<TheSpectre.ApiEnvelope.PaginationData>
+    {
+        public PaginationData(int CurrentPage, int PageSize, int RowCount) { }
+        public int CurrentPage { get; init; }
+        public int FirstRowOnPage { get; }
+        public int LastRowOnPage { get; }
+        public int PageCount { get; }
+        public int PageSize { get; init; }
+        public int RowCount { get; init; }
     }
     public static class ValidationErrorCodes
     {

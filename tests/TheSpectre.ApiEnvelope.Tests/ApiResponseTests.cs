@@ -16,7 +16,7 @@ public sealed class ApiResponseTests
 
         Assert.That(response.IsSuccess, Is.True);
         Assert.That(response.StatusCode, Is.EqualTo(200));
-        Assert.That(response.Data, Is.EqualTo(new Sample(42, "Ahmed")));
+        Assert.That(response.Result, Is.EqualTo(new Sample(42, "Ahmed")));
         Assert.That(response.ErrorCode, Is.Null);
         Assert.That(response.Message, Is.Null);
         Assert.That(response.Details, Is.Null);
@@ -32,7 +32,7 @@ public sealed class ApiResponseTests
 
         Assert.That(response.IsSuccess, Is.False);
         Assert.That(response.StatusCode, Is.EqualTo(400));
-        Assert.That(response.Data, Is.Null);
+        Assert.That(response.Result, Is.Null);
         Assert.That(response.ErrorCode, Is.EqualTo("VALIDATION_FAILED"));
         Assert.That(response.Message, Is.EqualTo("diagnostic"));
         Assert.That(response.Details, Is.EqualTo(details));
@@ -65,7 +65,7 @@ public sealed class ApiResponseTests
     }
 
     [Test]
-    public void Serialize_WithDefaultIgnoreConditionWhenWritingNull_StillEmitsDataAndErrorCode()
+    public void Serialize_WithDefaultIgnoreConditionWhenWritingNull_StillEmitsResultAndErrorCode()
     {
         var options = new JsonSerializerOptions
         {
@@ -75,7 +75,7 @@ public sealed class ApiResponseTests
         var json = JsonSerializer.Serialize(
             ApiResponse.Failure("CONFLICT", "trace-5", 409), options);
 
-        Assert.That(json, Does.Contain("\"data\":null"));
+        Assert.That(json, Does.Contain("\"result\":null"));
         Assert.That(json, Does.Contain("\"errorCode\":\"CONFLICT\""));
     }
 

@@ -39,7 +39,7 @@ public sealed class EnvelopeResponseWriterTests
         Assert.That(context.Response.StatusCode, Is.EqualTo(409));
         Assert.That(context.Response.ContentType, Is.EqualTo("application/json; charset=utf-8"));
         Assert.That(ReadBody(context), Is.EqualTo(
-            "{\"isSuccess\":false,\"statusCode\":409,\"data\":null," +
+            "{\"isSuccess\":false,\"statusCode\":409,\"result\":null," +
             "\"errorCode\":\"PROJECT_CODE_TAKEN\",\"message\":\"diagnostic\"," +
             $"\"correlationId\":\"{TraceId}\"}}"));
     }

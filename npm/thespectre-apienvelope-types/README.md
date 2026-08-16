@@ -9,7 +9,7 @@ import type { ApiResponse } from 'thespectre-apienvelope-types';
 const res: ApiResponse<Project[]> = await http.get('/api/projects').toPromise();
 
 if (res.isSuccess) {
-  this.projects = res.data;            // Project[] — narrowed, no assertion
+  this.projects = res.result;          // Project[] — narrowed, no assertion
 } else {
   this.error = translateError(res.errorCode, lang);   // string — never render res.message
 }
