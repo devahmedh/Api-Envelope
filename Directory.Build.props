@@ -15,8 +15,8 @@
     <Company>TheSpectreDev</Company>
     <Copyright>Copyright (c) TheSpectreDev</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/TheSpectreDev/Api-Envelope</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/TheSpectreDev/Api-Envelope</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/devahmedh/Api-Envelope</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/devahmedh/Api-Envelope</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>aspnetcore;api;response;envelope;wrapper;error-handling;i18n;localization;middleware;autowrapper-alternative</PackageTags>
   </PropertyGroup>
