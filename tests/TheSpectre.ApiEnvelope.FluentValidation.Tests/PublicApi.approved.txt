@@ -1,0 +1,19 @@
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TheSpectre.ApiEnvelope.FluentValidation.Tests")]
+namespace TheSpectre.ApiEnvelope.FluentValidation
+{
+    public static class FluentValidationApiEnvelopeExtensions
+    {
+        public static TBuilder WithFluentValidation<TBuilder, TModel>(this TBuilder builder)
+            where TBuilder : Microsoft.AspNetCore.Builder.IEndpointConventionBuilder
+            where TModel :  class { }
+    }
+    public static class ValidationFailureExtensions
+    {
+        public static TheSpectre.ApiEnvelope.ErrorDetail ToErrorDetail(this FluentValidation.Results.ValidationFailure failure, System.Text.Json.JsonNamingPolicy? namingPolicy = null) { }
+        public static System.Collections.Generic.IReadOnlyList<TheSpectre.ApiEnvelope.ErrorDetail> ToErrorDetails(this FluentValidation.Results.ValidationResult result, System.Text.Json.JsonNamingPolicy? namingPolicy = null) { }
+    }
+    public static class ValidatorErrorCodeAudit
+    {
+        public static System.Collections.Generic.IReadOnlyList<string> FindRulesWithoutExplicitErrorCodes(System.Reflection.Assembly assembly) { }
+    }
+}
