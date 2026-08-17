@@ -26,9 +26,12 @@
   </PropertyGroup>
 
   <!-- Ship the README inside every package so it renders on the NuGet gallery page.
-       Only packable projects need it; adding it unconditionally would fail test projects. -->
-  <ItemGroup Condition="'$(IsPackable)' == 'true'">
-    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+       PackagePath must be a forward slash: a backslash means "package root" on Windows but
+       is a literal character on Linux, so the file lands off-root and the gallery shows
+       nothing. The condition tolerates an unset IsPackable, which is not yet resolved at
+       this point on every SDK; non-packing projects ignore the item harmlessly. -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
   <PropertyGroup Label="SourceLink">
