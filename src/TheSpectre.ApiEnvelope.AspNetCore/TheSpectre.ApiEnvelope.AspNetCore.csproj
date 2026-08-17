@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TheSpectre.ApiEnvelope.AspNetCore.Tests" />
+    <InternalsVisibleTo Include="TheSpectre.ApiEnvelope.FluentValidation" />
   </ItemGroup>
 
 </Project>

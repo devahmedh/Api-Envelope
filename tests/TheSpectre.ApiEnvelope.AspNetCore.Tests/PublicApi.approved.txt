@@ -1,4 +1,5 @@
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TheSpectre.ApiEnvelope.AspNetCore.Tests")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TheSpectre.ApiEnvelope.FluentValidation")]
 namespace TheSpectre.ApiEnvelope.AspNetCore
 {
     public static class ApiEnvelopeApplicationBuilderExtensions
