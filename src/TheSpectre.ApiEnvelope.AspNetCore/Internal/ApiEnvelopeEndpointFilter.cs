@@ -36,12 +36,23 @@ internal sealed class ApiEnvelopeEndpointFilter : IEndpointFilter
             return returned;
         }
 
-        if (!SuccessEnvelope.ShouldWrap(httpContext, _options, value))
+        if (SuccessEnvelope.ShouldWrap(httpContext, _options, value, statusCode))
         {
-            return returned;
+            return new EnvelopeHttpResult(value, statusCode, _options, _json.Value.SerializerOptions);
         }
 
-        return new EnvelopeHttpResult(value, statusCode, _options, _json.Value.SerializerOptions);
+        if (!SuccessEnvelope.IsSuccessStatus(statusCode)
+            && value is not IApiResponse
+            && !EnvelopeBypass.ShouldBypass(httpContext, _options))
+        {
+            // A result with status >= 400 must never be success-wrapped (see
+            // SuccessEnvelope.IsSuccessStatus) - route it to the error envelope instead,
+            // discarding whatever value it carried. NoEnvelope and an already-built
+            // ApiResponse both still opt out.
+            return new ErrorEnvelopeHttpResult(statusCode, _options, _json.Value.SerializerOptions);
+        }
+
+        return returned;
     }
 
     // Returns false for results this library must not touch: files, redirects, challenges,
@@ -61,8 +72,31 @@ internal sealed class ApiEnvelopeEndpointFilter : IEndpointFilter
                 statusCode = StatusCodes.Status204NoContent;
                 return true;
 
+            // A void/Task handler and TypedResults.Empty are all normalised by the framework to
+            // the same EmptyHttpResult singleton before any filter sees them. MVC's equivalent
+            // (an action returning void, or an explicit EmptyResult) is always wrapped, so this
+            // must be too, for MVC/minimal-API parity.
+            case Microsoft.AspNetCore.Http.HttpResults.EmptyHttpResult:
+                value = null;
+                statusCode = StatusCodes.Status200OK;
+                return true;
+
+            // Created(uri)/Accepted(uri) with no value implement IStatusCodeHttpResult but not
+            // IValueHttpResult - structurally identical to Ok()/BadRequest()/NotFound() with no
+            // value, which stay in the IResult fall-through below. They are matched by exact
+            // type, not by interface, because MVC only wraps them by an accident of its own
+            // class hierarchy: CreatedResult/AcceptedResult derive from ObjectResult regardless
+            // of whether a value was supplied. Matching that accident - not rationalising it -
+            // is what MVC/minimal-API parity means here.
+            case Microsoft.AspNetCore.Http.HttpResults.Created:
+            case Microsoft.AspNetCore.Http.HttpResults.Accepted:
+                value = null;
+                statusCode = ((IStatusCodeHttpResult)returned).StatusCode ?? StatusCodes.Status200OK;
+                return true;
+
             case IResult:
-                // A file, a redirect, a challenge — leave it exactly as it is.
+                // A file, a redirect, a challenge, or a bodiless result MVC also leaves alone
+                // (Ok(), BadRequest(), NotFound(), ...) - leave it exactly as it is.
                 value = null;
                 statusCode = 0;
                 return false;

@@ -1,4 +1,6 @@
+using System.ComponentModel.DataAnnotations;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -16,6 +18,12 @@ public sealed class EnvelopeTestController : ControllerBase
 {
     public sealed record Sample(int Id, string Name);
 
+    public sealed class ValidatedModel
+    {
+        [Required]
+        public string? Name { get; set; }
+    }
+
     [HttpGet("object")]
     public IActionResult GetObject() => Ok(new Sample(42, "Ahmed"));
 
@@ -31,6 +39,15 @@ public sealed class EnvelopeTestController : ControllerBase
     [HttpGet("raw")]
     [NoEnvelope]
     public IActionResult GetRaw() => Ok(new Sample(1, "x"));
+
+    [HttpGet("badrequest")]
+    public IActionResult GetBadRequest() => BadRequest(new { field = "code" });
+
+    [HttpGet("notfound")]
+    public IActionResult GetNotFound() => NotFound(new { id = 1 });
+
+    [HttpPost("validate")]
+    public IActionResult PostValidate([FromBody] ValidatedModel model) => Ok(model);
 }
 
 [TestFixture]
@@ -118,5 +135,51 @@ public sealed class MvcEnvelopeTests
 
         Assert.That(body, Does.Not.Contain("isSuccess"));
         Assert.That(body, Does.Contain("\"id\":1"));
+    }
+
+    [Test]
+    public async Task BadRequestObjectResult_IsErrorEnvelopedNotSuccessWrapped()
+    {
+        using var host = CreateHost();
+
+        var response = await host.GetTestClient().GetAsync("/mvc/badrequest");
+        var body = await response.Content.ReadAsStringAsync();
+        var envelope = JsonDocument.Parse(body).RootElement;
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(envelope.GetProperty("isSuccess").GetBoolean(), Is.False);
+        Assert.That(envelope.GetProperty("errorCode").GetString(), Is.EqualTo("BAD_REQUEST"));
+        Assert.That(body, Does.Not.Contain("\"field\""));
+    }
+
+    [Test]
+    public async Task NotFoundObjectResult_IsErrorEnvelopedNotSuccessWrapped()
+    {
+        using var host = CreateHost();
+
+        var response = await host.GetTestClient().GetAsync("/mvc/notfound");
+        var body = await response.Content.ReadAsStringAsync();
+        var envelope = JsonDocument.Parse(body).RootElement;
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        Assert.That(envelope.GetProperty("isSuccess").GetBoolean(), Is.False);
+        Assert.That(envelope.GetProperty("errorCode").GetString(), Is.EqualTo("NOT_FOUND"));
+        Assert.That(body, Does.Not.Contain("\"id\":1"));
+    }
+
+    [Test]
+    public async Task InvalidModelState_IsErrorEnvelopedWithoutBackendAuthoredProse()
+    {
+        using var host = CreateHost();
+
+        var response = await host.GetTestClient().PostAsync(
+            "/mvc/validate", new StringContent("{}", Encoding.UTF8, "application/json"));
+        var body = await response.Content.ReadAsStringAsync();
+        var envelope = JsonDocument.Parse(body).RootElement;
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(envelope.GetProperty("isSuccess").GetBoolean(), Is.False);
+        Assert.That(body, Does.Not.Contain("One or more validation errors"));
+        Assert.That(body, Does.Not.Contain("\"title\""));
     }
 }

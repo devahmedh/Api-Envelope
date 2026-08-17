@@ -34,7 +34,7 @@ public sealed class SuccessEnvelopeTests
     public void ShouldWrap_ForAnOrdinaryValue_IsTrue()
     {
         Assert.That(
-            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), new Sample(1, "x")),
+            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), new Sample(1, "x"), 200),
             Is.True);
     }
 
@@ -43,7 +43,7 @@ public sealed class SuccessEnvelopeTests
     {
         // A 204 turned into 200 carries a null result — it must still be enveloped.
         Assert.That(
-            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), null),
+            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), null, 200),
             Is.True);
     }
 
@@ -53,7 +53,7 @@ public sealed class SuccessEnvelopeTests
         var alreadyWrapped = ApiResponse.Success(new Sample(1, "x"), TraceId);
 
         Assert.That(
-            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), alreadyWrapped),
+            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), alreadyWrapped, 200),
             Is.False);
     }
 
@@ -61,8 +61,40 @@ public sealed class SuccessEnvelopeTests
     public void ShouldWrap_OnAnExcludedPath_IsFalse()
     {
         Assert.That(
-            SuccessEnvelope.ShouldWrap(CreateContext("/health"), new ApiEnvelopeOptions(), new Sample(1, "x")),
+            SuccessEnvelope.ShouldWrap(CreateContext("/health"), new ApiEnvelopeOptions(), new Sample(1, "x"), 200),
             Is.False);
+    }
+
+    [TestCase(200)]
+    [TestCase(399)]
+    public void ShouldWrap_ForASuccessStatus_IsTrue(int statusCode)
+    {
+        Assert.That(
+            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), new Sample(1, "x"), statusCode),
+            Is.True);
+    }
+
+    [TestCase(400)]
+    [TestCase(404)]
+    [TestCase(500)]
+    public void ShouldWrap_ForAnErrorStatus_IsFalse(int statusCode)
+    {
+        // A 4xx/5xx result must never be success-wrapped, regardless of what value it carries -
+        // it belongs in the error envelope instead (see ApiEnvelopeResultFilter / EndpointFilter).
+        Assert.That(
+            SuccessEnvelope.ShouldWrap(CreateContext(), new ApiEnvelopeOptions(), new Sample(1, "x"), statusCode),
+            Is.False);
+    }
+
+    [TestCase(200, true)]
+    [TestCase(201, true)]
+    [TestCase(399, true)]
+    [TestCase(400, false)]
+    [TestCase(404, false)]
+    [TestCase(500, false)]
+    public void IsSuccessStatus_ClassifiesTwoHundredsAndThreeHundredsAsSuccess(int statusCode, bool expected)
+    {
+        Assert.That(SuccessEnvelope.IsSuccessStatus(statusCode), Is.EqualTo(expected));
     }
 
     [TestCase(200, 200)]

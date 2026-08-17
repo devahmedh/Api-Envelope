@@ -153,6 +153,38 @@ public sealed class MinimalApiEnvelopeTests
     }
 
     [Test]
+    public async Task TypedResultsBadRequest_IsErrorEnvelopedNotSuccessWrapped()
+    {
+        using var host = CreateHost(e => e.MapGroup("").WithApiEnvelope()
+            .MapGet("/badrequest", () => TypedResults.BadRequest(new { field = "code" })));
+
+        var response = await host.GetTestClient().GetAsync("/badrequest");
+        var body = await response.Content.ReadAsStringAsync();
+        var envelope = JsonDocument.Parse(body).RootElement;
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(envelope.GetProperty("isSuccess").GetBoolean(), Is.False);
+        Assert.That(envelope.GetProperty("errorCode").GetString(), Is.EqualTo("BAD_REQUEST"));
+        Assert.That(body, Does.Not.Contain("\"field\""));
+    }
+
+    [Test]
+    public async Task TypedResultsNotFound_IsErrorEnvelopedNotSuccessWrapped()
+    {
+        using var host = CreateHost(e => e.MapGroup("").WithApiEnvelope()
+            .MapGet("/notfound", () => TypedResults.NotFound(new { id = 1 })));
+
+        var response = await host.GetTestClient().GetAsync("/notfound");
+        var body = await response.Content.ReadAsStringAsync();
+        var envelope = JsonDocument.Parse(body).RootElement;
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        Assert.That(envelope.GetProperty("isSuccess").GetBoolean(), Is.False);
+        Assert.That(envelope.GetProperty("errorCode").GetString(), Is.EqualTo("NOT_FOUND"));
+        Assert.That(body, Does.Not.Contain("\"id\":1"));
+    }
+
+    [Test]
     public async Task PagedResult_NestsDataAndPaginationInsideResult()
     {
         using var host = CreateHost(e => e.MapGroup("").WithApiEnvelope()

@@ -30,11 +30,24 @@ internal sealed class ApiEnvelopeResultFilter : IAsyncAlwaysRunResultFilter
         ResultExecutingContext context,
         ResultExecutionDelegate next)
     {
-        if (TryUnwrap(context.Result, out var value, out var statusCode)
-            && SuccessEnvelope.ShouldWrap(context.HttpContext, _options, value))
+        if (TryUnwrap(context.Result, out var value, out var statusCode))
         {
-            context.Result = new EnvelopeActionResult(
-                value, statusCode, _options, _json.Value.SerializerOptions);
+            if (SuccessEnvelope.ShouldWrap(context.HttpContext, _options, value, statusCode))
+            {
+                context.Result = new EnvelopeActionResult(
+                    value, statusCode, _options, _json.Value.SerializerOptions);
+            }
+            else if (!SuccessEnvelope.IsSuccessStatus(statusCode)
+                && value is not IApiResponse
+                && !EnvelopeBypass.ShouldBypass(context.HttpContext, _options))
+            {
+                // A result with status >= 400 must never be success-wrapped (see
+                // SuccessEnvelope.IsSuccessStatus) - route it to the error envelope instead,
+                // discarding whatever value it carried (ValidationProblemDetails, an anonymous
+                // object, ...). NoEnvelope and an already-built ApiResponse both still opt out.
+                context.Result = new ErrorEnvelopeActionResult(
+                    statusCode, _options, _json.Value.SerializerOptions);
+            }
         }
 
         await next();
@@ -49,6 +62,13 @@ internal sealed class ApiEnvelopeResultFilter : IAsyncAlwaysRunResultFilter
             case ObjectResult objectResult:
                 value = objectResult.Value;
                 statusCode = objectResult.StatusCode ?? StatusCodes.Status200OK;
+                return true;
+
+            // JsonResult is not an ObjectResult - it needs its own case for MVC/minimal-API
+            // parity, since Results.Json(...) on the minimal side is already unwrapped.
+            case JsonResult jsonResult:
+                value = jsonResult.Value;
+                statusCode = jsonResult.StatusCode ?? StatusCodes.Status200OK;
                 return true;
 
             case StatusCodeResult { StatusCode: StatusCodes.Status204NoContent }:
