@@ -57,3 +57,71 @@ jobs:
 
       - name: Fail if generated fixtures are stale
         run: git diff --exit-code -- test/fixtures.generated.ts
+
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Pack both shipped packages
+        run: |
+          dotnet pack src/TheSpectre.ApiEnvelope/TheSpectre.ApiEnvelope.csproj -c Release -o artifacts/local-feed
+          dotnet pack src/TheSpectre.ApiEnvelope.AspNetCore/TheSpectre.ApiEnvelope.AspNetCore.csproj -c Release -o artifacts/local-feed
+
+      - name: Fail if a target framework is missing from a package
+        run: |
+          for pkg in artifacts/local-feed/TheSpectre.ApiEnvelope.1.0.0.nupkg \
+                     artifacts/local-feed/TheSpectre.ApiEnvelope.AspNetCore.1.0.0.nupkg; do
+            echo "--- $pkg"
+            unzip -l "$pkg" | grep -E 'lib/net(8|10)\.0/.*\.dll' || {
+              echo "::error::$pkg is missing a lib/ target framework"; exit 1; }
+          done
+
+      - name: Consume the packages from the local feed
+        run: dotnet test samples/ConsumerSmoke -c Release
+
+  aot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install the native toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish Native AOT
+        run: dotnet publish samples/AotSmoke -c Release -r linux-x64 -p:PublishAot=true -o aot-out
+
+      - name: Run the native binary and assert the envelope
+        run: |
+          ./aot-out/AotSmoke --urls http://127.0.0.1:5099 &
+          APP_PID=$!
+          trap 'kill $APP_PID 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5099/project >/dev/null && break
+            sleep 1
+          done
+
+          BODY=$(curl -s http://127.0.0.1:5099/project)
+          echo "success body: $BODY"
+          echo "$BODY" | grep -q '"isSuccess":true' \
+            || { echo "::error::no success envelope under AOT"; exit 1; }
+          echo "$BODY" | grep -q '"result":{"id":42,"name":"Ahmed"}' \
+            || { echo "::error::payload contract did not resolve under AOT"; exit 1; }
+
+          ERR=$(curl -s http://127.0.0.1:5099/conflict)
+          echo "error body: $ERR"
+          echo "$ERR" | grep -q '"errorCode":"PROJECT_CODE_TAKEN"' \
+            || { echo "::error::no error envelope under AOT"; exit 1; }
+          echo "$ERR" | grep -q '"isSuccess":false' \
+            || { echo "::error::error envelope reports success under AOT"; exit 1; }
