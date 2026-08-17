@@ -19,7 +19,14 @@
     <RepositoryUrl>https://github.com/devahmedh/Api-Envelope</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>aspnetcore;api;response;envelope;wrapper;error-handling;i18n;localization;middleware;autowrapper-alternative</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <!-- Ship the README inside every package so it renders on the NuGet gallery page.
+       Only packable projects need it; adding it unconditionally would fail test projects. -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
 
   <PropertyGroup Label="SourceLink">
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
