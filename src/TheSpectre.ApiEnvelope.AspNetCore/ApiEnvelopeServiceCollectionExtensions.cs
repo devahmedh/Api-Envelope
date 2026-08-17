@@ -16,6 +16,11 @@ public static class ApiEnvelopeServiceCollectionExtensions
         services.AddOptions<ApiEnvelopeOptions>();
         services.AddExceptionHandler<ApiEnvelopeExceptionHandler>();
 
+        // MVC filters register application-wide, so controllers need no per-endpoint opt-in.
+        // Configure rather than AddControllers: this must not force MVC on a minimal-API app.
+        services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(mvc =>
+            mvc.Filters.Add<ApiEnvelopeResultFilter>());
+
         return services;
     }
 
