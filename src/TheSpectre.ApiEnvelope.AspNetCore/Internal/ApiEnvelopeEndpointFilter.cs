@@ -94,6 +94,29 @@ internal sealed class ApiEnvelopeEndpointFilter : IEndpointFilter
                 statusCode = ((IStatusCodeHttpResult)returned).StatusCode ?? StatusCodes.Status200OK;
                 return true;
 
+            // TypedResults.Ok()/Results.StatusCode(n) with no value ship with an empty body
+            // today, forcing a client to check the status before daring to read it. Matched by
+            // exact type, not by IStatusCodeHttpResult alone: RedirectHttpResult implements that
+            // interface too, and a redirect carrying a JSON body is broken because its Location
+            // header is the entire point - the same judgement already recorded above for
+            // Created/Accepted. Restricted further to 2xx only, deliberately: do not reuse
+            // SuccessEnvelope.IsSuccessStatus here, since it spans 200-399 and
+            // Results.StatusCode(302) is this same type carrying a redirect-shaped status.
+            case Microsoft.AspNetCore.Http.HttpResults.Ok:
+            case Microsoft.AspNetCore.Http.HttpResults.StatusCodeHttpResult:
+                var bodilessStatus = ((IStatusCodeHttpResult)returned).StatusCode
+                    ?? StatusCodes.Status200OK;
+                if (bodilessStatus is < 200 or > 299)
+                {
+                    value = null;
+                    statusCode = 0;
+                    return false;
+                }
+
+                value = null;
+                statusCode = bodilessStatus;
+                return true;
+
             case IResult:
                 // A file, a redirect, a challenge, or a bodiless result MVC also leaves alone
                 // (Ok(), BadRequest(), NotFound(), ...) - leave it exactly as it is.

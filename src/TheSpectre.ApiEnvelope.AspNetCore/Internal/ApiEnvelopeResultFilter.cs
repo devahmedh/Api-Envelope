@@ -77,6 +77,16 @@ internal sealed class ApiEnvelopeResultFilter : IAsyncAlwaysRunResultFilter
                 statusCode = StatusCodes.Status204NoContent;
                 return true;
 
+            // Any other bodiless StatusCodeResult - Ok() with no value, StatusCode(202), ... -
+            // ships with an empty body today, forcing a client to check the status before
+            // daring to read it. 2xx only, deliberately: SuccessEnvelope.IsSuccessStatus covers
+            // 200-399, which includes redirects, and a redirect carrying a JSON body is broken
+            // because its Location header is the entire point. Do not widen this to that helper.
+            case StatusCodeResult { StatusCode: >= 200 and <= 299 } statusCodeResult:
+                value = null;
+                statusCode = statusCodeResult.StatusCode;
+                return true;
+
             default:
                 value = null;
                 statusCode = 0;
