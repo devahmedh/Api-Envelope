@@ -24,6 +24,10 @@ on:
 
 permissions:
   contents: write
+  # Required for npm trusted publishing. The job exchanges a short-lived GitHub OIDC
+  # token for publish rights on the package, so no npm credential is stored anywhere.
+  # The same token is what lets npm attach a signed provenance attestation.
+  id-token: write
 
 jobs:
   publish:
@@ -40,10 +44,33 @@ jobs:
             8.0.x
             10.0.x
 
+      # No registry-url on purpose. That input makes setup-node write an .npmrc
+      # containing `_authToken=${NODE_AUTH_TOKEN}`; with trusted publishing there is no
+      # such variable to expand, and npm treats an unresolvable env reference in .npmrc
+      # as a hard error. The registry is instead declared in the package's own
+      # publishConfig, which is where it belongs and cannot drift from the workflow.
+      #
+      # Node 24 because trusted publishing requires Node >= 22.14.0; Node 20 is also
+      # past end of support on GitHub runners.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: '24'
+
+      # Trusted publishing needs npm >= 11.5.1. An older npm does not fail loudly — it
+      # simply does not attempt the OIDC exchange, and falls back to looking for a
+      # credential it will not find. Assert the version rather than trusting whatever
+      # npm the Node image happened to bundle.
+      - name: Install an npm that supports trusted publishing
+        run: |
+          npm install -g npm@latest
+
+          required=11.5.1
+          have=$(npm --version)
+          echo "npm $have (require >= $required)"
+          if [ "$(printf '%s\n%s\n' "$required" "$have" | sort -V | head -1)" != "$required" ]; then
+            echo "::error::npm $have is too old for trusted publishing; need >= $required"
+            exit 1
+          fi
 
       - name: Resolve the version and channel for this branch
         id: version
@@ -152,17 +179,25 @@ jobs:
       # token that is valid yet lacks the 2FA-bypass property passes `whoami` and then
       # fails at PUT — by which point nuget.org has already accepted the version
       # permanently. Ordering is enforcement; a probe is only a hint.
+      # Authentication is the job's OIDC identity, not a stored secret. npm verifies the
+      # token against the trusted publisher configured on the package — which pins this
+      # repository, this workflow filename and this environment — so a workflow added on
+      # a fork or under a different filename cannot publish, and there is no credential
+      # to leak or rotate.
+      #
+      # --provenance is explicit rather than relying on the documented default: a
+      # silently absent attestation is indistinguishable from a present one at the call
+      # site, and the flag makes a missing OIDC token fail the publish instead of
+      # quietly downgrading it.
       - name: Publish the npm types package
         if: steps.version.outputs.publish == 'true'
         working-directory: npm/thespectre-apienvelope-types
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm ci
           npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
           # --tag matters: without it npm points "latest" at whatever was published last,
           # so a prerelease would become the default install for everyone.
-          npm publish --access public --tag "${{ steps.version.outputs.npm_tag }}"
+          npm publish --provenance --tag "${{ steps.version.outputs.npm_tag }}"
 
       - name: Push packages to nuget.org
         if: steps.version.outputs.publish == 'true'
