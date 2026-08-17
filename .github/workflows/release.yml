@@ -141,6 +141,17 @@ jobs:
           name: packages-${{ steps.version.outputs.version }}
           path: artifacts/local-feed/*
 
+      # Both registries are published in sequence, and nuget.org versions can never be
+      # deleted — only unlisted. An npm credential that fails at push time therefore
+      # leaves a permanent half-published version behind. Authenticate against npm
+      # before anything ships, so a bad token fails the run while both registries are
+      # still untouched.
+      - name: Verify the npm credential authenticates before anything is published
+        if: steps.version.outputs.publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami
+
       - name: Push packages to nuget.org
         if: steps.version.outputs.publish == 'true'
         env:
