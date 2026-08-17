@@ -224,12 +224,6 @@ public static class ApiEnvelopeWriter
             case int number:
                 writer.WriteNumberValue(number);
                 break;
-            case long number:
-                writer.WriteNumberValue(number);
-                break;
-            case decimal number:
-                writer.WriteNumberValue(number);
-                break;
             case double number:
                 writer.WriteNumberValue(number);
                 break;
@@ -239,7 +233,7 @@ public static class ApiEnvelopeWriter
             default:
                 throw new NotSupportedException(
                     $"Parameter '{key}' has unsupported type '{value.GetType().Name}'. " +
-                    "Supported params value types are: string, int, long, decimal, double, bool, null.");
+                    "Supported params value types are: string, int, double, bool, null.");
         }
     }
 }

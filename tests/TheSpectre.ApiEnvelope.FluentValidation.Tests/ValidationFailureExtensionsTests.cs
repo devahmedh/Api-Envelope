@@ -87,6 +87,22 @@ public sealed class ValidationFailureExtensionsTests
     }
 
     [Test]
+    public void ToErrorDetail_DropsALongOrDecimalPlaceholderRatherThanThrowing()
+    {
+        var detail = CreateFailure("Price", "OUT_OF_RANGE", new Dictionary<string, object>
+        {
+            ["ComparisonValue"] = 9_000_000_000L,
+            ["MaxLength"] = 99.99m,
+        }).ToErrorDetail(Camel);
+
+        // long and decimal cannot be represented exactly by JavaScript's number type, so
+        // ErrorDetail's constructor now throws on them. The mapper must filter instead of
+        // passing them through, or a third-party validator's decimal bound would crash the
+        // response mid-write.
+        Assert.That(detail.Params, Is.Null);
+    }
+
+    [Test]
     public void ToErrorDetail_DropsTotalLengthBecauseItDescribesTheInputNotTheRule()
     {
         var detail = CreateFailure("Title", "TOO_LONG", new Dictionary<string, object>

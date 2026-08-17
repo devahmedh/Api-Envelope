@@ -13,8 +13,6 @@ public sealed class ErrorDetailTests
         {
             ["text"] = "abc",
             ["int"] = 400,
-            ["long"] = 9_000_000_000L,
-            ["decimal"] = 12.34m,
             ["double"] = 1.5d,
             ["bool"] = true,
             ["nothing"] = null,
@@ -23,7 +21,7 @@ public sealed class ErrorDetailTests
         var detail = new ErrorDetail("title", "TOO_LONG", parameters);
 
         Assert.That(detail.Params, Is.Not.Null);
-        Assert.That(detail.Params!.Count, Is.EqualTo(7));
+        Assert.That(detail.Params!.Count, Is.EqualTo(5));
     }
 
     [Test]
@@ -36,6 +34,30 @@ public sealed class ErrorDetailTests
 
         Assert.That(ex!.Message, Does.Contain("when"));
         Assert.That(ex.Message, Does.Contain("DateTimeOffset"));
+    }
+
+    [Test]
+    public void Constructor_WithLongParamValue_ThrowsNotSupportedException()
+    {
+        var parameters = new Dictionary<string, object?> { ["max"] = 9_000_000_000L };
+
+        var ex = Assert.Throws<NotSupportedException>(
+            () => new ErrorDetail("title", "TOO_LONG", parameters));
+
+        Assert.That(ex!.Message, Does.Contain("max"));
+        Assert.That(ex.Message, Does.Contain("Int64"));
+    }
+
+    [Test]
+    public void Constructor_WithDecimalParamValue_ThrowsNotSupportedException()
+    {
+        var parameters = new Dictionary<string, object?> { ["max"] = 99.99m };
+
+        var ex = Assert.Throws<NotSupportedException>(
+            () => new ErrorDetail("title", "TOO_LONG", parameters));
+
+        Assert.That(ex!.Message, Does.Contain("max"));
+        Assert.That(ex.Message, Does.Contain("Decimal"));
     }
 
     [Test]

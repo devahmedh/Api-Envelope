@@ -19,9 +19,11 @@ public sealed class ErrorDetail
     /// <param name="errorCode">The stable SCREAMING_SNAKE_CASE key for this failure.</param>
     /// <param name="parameters">
     /// Optional structured values for client-side message rendering. Permitted value types
-    /// are <see cref="string"/>, <see cref="int"/>, <see cref="long"/>,
-    /// <see cref="decimal"/>, <see cref="double"/>, <see cref="bool"/> and <see langword="null"/>.
-    /// An empty dictionary is normalised to <see langword="null"/>.
+    /// are <see cref="string"/>, <see cref="int"/>, <see cref="double"/>, <see cref="bool"/>
+    /// and <see langword="null"/>. <see cref="long"/> and <see cref="decimal"/> are excluded
+    /// because JavaScript's <c>number</c> type cannot represent either faithfully — an exact
+    /// value should be passed as a string instead. An empty dictionary is normalised to
+    /// <see langword="null"/>.
     /// </param>
     /// <exception cref="ArgumentException">
     /// <paramref name="field"/> or <paramref name="errorCode"/> is null, empty or whitespace.
@@ -52,10 +54,14 @@ public sealed class ErrorDetail
     public IReadOnlyDictionary<string, object?>? Params { get; }
 
     /// <summary>
-    /// Whether <paramref name="value"/> is a permitted <c>params</c> value type.
+    /// Whether <paramref name="value"/> is a permitted <c>params</c> value type: <see langword="null"/>,
+    /// <see cref="string"/>, <see cref="int"/>, <see cref="double"/> or <see cref="bool"/>.
+    /// <see cref="long"/> and <see cref="decimal"/> are deliberately excluded — JavaScript's
+    /// <c>number</c> type is an IEEE-754 double and cannot represent either faithfully, so an
+    /// exact value should be passed as a string instead.
     /// </summary>
     private static bool IsSupportedParamValue(object? value) =>
-        value is null or string or int or long or decimal or double or bool;
+        value is null or string or int or double or bool;
 
     private static IReadOnlyDictionary<string, object?>? Normalise(
         IReadOnlyDictionary<string, object?>? parameters)
@@ -71,7 +77,7 @@ public sealed class ErrorDetail
             {
                 throw new NotSupportedException(
                     $"Parameter '{pair.Key}' has unsupported type '{pair.Value!.GetType().Name}'. " +
-                    "Supported params value types are: string, int, long, decimal, double, bool, null.");
+                    "Supported params value types are: string, int, double, bool, null.");
             }
         }
 

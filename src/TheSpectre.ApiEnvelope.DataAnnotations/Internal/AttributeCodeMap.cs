@@ -97,15 +97,17 @@ internal static class AttributeCodeMap
         return parameters;
     }
 
+    // Mirrors ErrorDetail's permitted set, minus null: string, int, double, bool. long and
+    // decimal are excluded because JavaScript's number type cannot represent either faithfully.
     private static bool IsSupported(object? value) =>
-        value is string or int or long or decimal or double or bool;
+        value is string or int or double or bool;
 
     // RangeAttribute's Type,string,string constructor (used for types like DateTime) keeps
     // Minimum/Maximum as the raw constructor strings until model validation first calls IsValid,
     // which lazily converts them in place — e.g. to an actual DateTime. A pre-conversion string
-    // is not a meaningful bound, and a post-conversion DateTime is not a permitted ErrorDetail
-    // params value, so only genuinely numeric/bool bounds (what Range's numeric constructors
-    // naturally produce) are ever surfaced.
+    // is not a meaningful bound, and a post-conversion DateTime, long or decimal is not a
+    // permitted ErrorDetail params value, so only genuinely int/double/bool bounds (what
+    // Range's numeric constructors naturally produce) are ever surfaced.
     private static object? RangeBoundOrNull(object? value) =>
-        value is int or long or decimal or double or bool ? value : null;
+        value is int or double or bool ? value : null;
 }

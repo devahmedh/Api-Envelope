@@ -82,6 +82,37 @@ public sealed class AttributeCodeMapTests
     }
 
     [Test]
+    public void TryMap_ForRangeWithLongBounds_DropsTheParamsBecauseLongIsNoLongerSupported()
+    {
+        // The Type,string,string constructor keeps Minimum/Maximum as raw strings until the
+        // first call to IsValid lazily converts them to the operand type — here, an actual long.
+        var attribute = new System.ComponentModel.DataAnnotations.RangeAttribute(typeof(long), "10", "100");
+        attribute.IsValid(50L);
+
+        var mapped = AttributeCodeMap.TryMap(attribute, out var code, out var parameters);
+
+        Assert.That(mapped, Is.True);
+        Assert.That(code, Is.EqualTo(ValidationErrorCodes.OutOfRange));
+        // long cannot be represented exactly by JavaScript's number type, so ErrorDetail's
+        // constructor now throws on it. The map must filter instead of passing it through, or a
+        // Range(long) bound would crash the response mid-write.
+        Assert.That(parameters, Is.Null);
+    }
+
+    [Test]
+    public void TryMap_ForRangeWithDecimalBounds_DropsTheParamsBecauseDecimalIsNoLongerSupported()
+    {
+        var attribute = new System.ComponentModel.DataAnnotations.RangeAttribute(typeof(decimal), "1.50", "99.99");
+        attribute.IsValid(50m);
+
+        var mapped = AttributeCodeMap.TryMap(attribute, out var code, out var parameters);
+
+        Assert.That(mapped, Is.True);
+        Assert.That(code, Is.EqualTo(ValidationErrorCodes.OutOfRange));
+        Assert.That(parameters, Is.Null);
+    }
+
+    [Test]
     public void TryMap_ForEmailAddress_YieldsInvalidEmail()
     {
         AttributeCodeMap.TryMap(new EmailAddressAttribute(), out var code, out _);

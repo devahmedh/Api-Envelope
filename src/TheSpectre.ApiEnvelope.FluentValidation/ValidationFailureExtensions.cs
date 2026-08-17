@@ -87,11 +87,13 @@ public static class ValidationFailureExtensions
         return parameters;
     }
 
-    // Mirrors ErrorDetail's permitted set. Filtering here rather than letting the constructor
-    // throw matters: a DateTimeOffset placeholder from a custom validator would otherwise take
-    // down the response instead of simply not being rendered.
+    // Mirrors ErrorDetail's permitted set: null, string, int, double, bool. long and decimal
+    // are excluded because JavaScript's number type cannot represent either faithfully.
+    // Filtering here rather than letting the constructor throw matters: a DateTimeOffset (or
+    // long, or decimal) placeholder from a custom validator would otherwise take down the
+    // response instead of simply not being rendered.
     private static bool IsSupported(object? value) =>
-        value is null or string or int or long or decimal or double or bool;
+        value is null or string or int or double or bool;
 
     private static bool IsZero(object? value) => value switch
     {

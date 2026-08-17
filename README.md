@@ -230,6 +230,8 @@ This is the part that makes the library worth adopting. A validation failure ret
 
 `field` is the **camelCase JSON path** the client already knows: `title`, `address.city`, `items[0].quantity`.
 
+`params` values are limited to `string`, `int`, `double`, `bool` and `null` — the types JSON and JavaScript's `number` both represent exactly. A `long` or `decimal` bound is dropped rather than converted, since a silent conversion could corrupt one specific large or high-precision value in production; pass it as a string (e.g. `"99.99"`) when the exact value matters.
+
 ### FluentValidation
 
 ```csharp
