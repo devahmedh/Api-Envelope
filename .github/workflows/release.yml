@@ -1,9 +1,26 @@
 name: release
 
+# Branch-driven versioning. The base version lives in Directory.Build.props as
+# VersionPrefix; the channel suffix is derived from the branch being pushed:
+#
+#   development  ->  1.0.0-alpha.<run>    prerelease, npm dist-tag "alpha"
+#   testing      ->  1.0.0-beta.<run>     prerelease, npm dist-tag "beta"
+#   production   ->  1.0.0                release,    npm dist-tag "latest"
+#
+# development does not publish automatically — it packs and uploads the alpha as a
+# workflow artifact. Versions on nuget.org can never be deleted, only unlisted, so a
+# push-per-commit policy would permanently accumulate. Use the manual run below to
+# publish an alpha deliberately.
+
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [testing, production]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to nuget.org and npm (otherwise pack and upload only)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -28,14 +45,45 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Verify the tag matches Directory.Build.props
+      - name: Resolve the version and channel for this branch
+        id: version
         run: |
-          tag_version="${GITHUB_REF_NAME#v}"
-          build_version=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
-          echo "Tag: $GITHUB_REF_NAME  ->  $tag_version"
-          echo "Directory.Build.props: $build_version"
-          if [ "$tag_version" != "$build_version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME (version $tag_version) does not match Directory.Build.props (version $build_version). Fix the tag or bump the version before releasing."
+          prefix=$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)
+
+          case "$GITHUB_REF_NAME" in
+            production) suffix=""                              ; npm_tag="latest" ;;
+            testing)    suffix="beta.${GITHUB_RUN_NUMBER}"     ; npm_tag="beta"   ;;
+            *)          suffix="alpha.${GITHUB_RUN_NUMBER}"    ; npm_tag="alpha"  ;;
+          esac
+
+          if [ -n "$suffix" ]; then version="$prefix-$suffix"; else version="$prefix"; fi
+
+          # Only production publishes on push. Any other branch requires an explicit
+          # manual run with publish=true.
+          if [ "$GITHUB_REF_NAME" = "production" ] || [ "$GITHUB_REF_NAME" = "testing" ]; then
+            publish="true"
+          else
+            publish="${{ inputs.publish }}"
+          fi
+
+          echo "branch=$GITHUB_REF_NAME"
+          echo "version=$version"
+          echo "npm_tag=$npm_tag"
+          echo "publish=$publish"
+
+          {
+            echo "prefix=$prefix"
+            echo "suffix=$suffix"
+            echo "version=$version"
+            echo "npm_tag=$npm_tag"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify the npm package version matches the base version
+        run: |
+          npm_version=$(node -p "require('./npm/thespectre-apienvelope-types/package.json').version")
+          if [ "$npm_version" != "${{ steps.version.outputs.prefix }}" ]; then
+            echo "::error::npm package.json is $npm_version but Directory.Build.props is ${{ steps.version.outputs.prefix }}. All artifacts version in lockstep."
             exit 1
           fi
 
@@ -43,33 +91,54 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore -c Release
+        run: dotnet build --no-restore -c Release -p:VersionSuffix=${{ steps.version.outputs.suffix }}
 
       - name: Run the full test suite
-        run: dotnet test --no-build -c Release --verbosity normal
+        run: dotnet test --no-build -c Release -p:VersionSuffix=${{ steps.version.outputs.suffix }} --verbosity normal
 
       - name: Pack all four packages
         run: |
           rm -rf artifacts
           for p in TheSpectre.ApiEnvelope TheSpectre.ApiEnvelope.AspNetCore \
                    TheSpectre.ApiEnvelope.FluentValidation TheSpectre.ApiEnvelope.DataAnnotations; do
-            dotnet pack "src/$p/$p.csproj" -c Release -o artifacts/local-feed
+            dotnet pack "src/$p/$p.csproj" -c Release \
+              -p:VersionSuffix=${{ steps.version.outputs.suffix }} \
+              -o artifacts/local-feed
           done
-          ls artifacts/local-feed
+          ls -la artifacts/local-feed
 
-      - name: Assert each package has both target frameworks and a README
+      - name: Assert every package carries both target frameworks and a README
         run: |
+          count=0
           for pkg in artifacts/local-feed/*.nupkg; do
             echo "--- $pkg"
-            unzip -l "$pkg" | grep -E 'lib/net8\.0/.*\.dll' || {
-              echo "::error::$pkg is missing lib/net8.0"; exit 1; }
-            unzip -l "$pkg" | grep -E 'lib/net10\.0/.*\.dll' || {
-              echo "::error::$pkg is missing lib/net10.0"; exit 1; }
-            unzip -l "$pkg" | grep -E '(^|/)README\.md$' || {
-              echo "::error::$pkg is missing README.md"; exit 1; }
+            unzip -l "$pkg" | grep -E 'lib/net8\.0/.*\.dll'  || { echo "::error::$pkg missing lib/net8.0";  exit 1; }
+            unzip -l "$pkg" | grep -E 'lib/net10\.0/.*\.dll' || { echo "::error::$pkg missing lib/net10.0"; exit 1; }
+            unzip -l "$pkg" | grep -E '(^|/)README\.md$'     || { echo "::error::$pkg missing README.md";   exit 1; }
+            count=$((count + 1))
           done
+          if [ "$count" -ne 4 ]; then
+            echo "::error::expected 4 packages, packed $count"
+            exit 1
+          fi
+
+      - name: Assert the packed version matches the resolved version
+        run: |
+          expected="${{ steps.version.outputs.version }}"
+          if ! ls "artifacts/local-feed/TheSpectre.ApiEnvelope.${expected}.nupkg" >/dev/null 2>&1; then
+            echo "::error::expected TheSpectre.ApiEnvelope.${expected}.nupkg; found:"
+            ls artifacts/local-feed
+            exit 1
+          fi
+
+      - name: Upload the packages as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ steps.version.outputs.version }}
+          path: artifacts/local-feed/*
 
       - name: Push packages to nuget.org
+        if: steps.version.outputs.publish == 'true'
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
@@ -83,31 +152,43 @@ jobs:
             --skip-duplicate
 
       - name: Publish the npm types package
+        if: steps.version.outputs.publish == 'true'
         working-directory: npm/thespectre-apienvelope-types
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm ci
-          npm publish --access public
+          npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+          # --tag matters: without it npm points "latest" at whatever was published last,
+          # so a prerelease would become the default install for everyone.
+          npm publish --access public --tag "${{ steps.version.outputs.npm_tag }}"
 
-      - name: Extract the matching CHANGELOG.md section
+      - name: Tag the release commit
+        if: github.ref_name == 'production'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tag_version="${GITHUB_REF_NAME#v}"
-          awk -v ver="## [$tag_version]" '
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create the GitHub Release
+        if: github.ref_name == 'production'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+
+          awk -v ver="## [$version]" '
             $0 == ver { found=1; print; next }
             found && /^## \[/ { exit }
             found { print }
           ' CHANGELOG.md > release-notes.md
 
           if [ ! -s release-notes.md ]; then
-            echo "::error::No CHANGELOG.md section found for [$tag_version]."
+            echo "::error::No CHANGELOG.md section found for [$version]."
             exit 1
           fi
 
-      - name: Create the GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
+          gh release create "v$version" \
+            --title "v$version" \
             --notes-file release-notes.md

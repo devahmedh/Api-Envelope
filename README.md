@@ -481,6 +481,27 @@ CI publishes a real native binary and curls it on every commit, so this is verif
 
 ---
 
+## Branches and versions
+
+Work flows in one direction: **`development` → `testing` → `production`**. The base version lives in `Directory.Build.props`; the channel suffix comes from the branch.
+
+| Branch | Version | NuGet | npm dist-tag |
+|---|---|---|---|
+| `development` | `1.0.0-alpha.<build>` | prerelease, published on demand | `alpha` |
+| `testing` | `1.0.0-beta.<build>` | prerelease, published on push | `beta` |
+| `production` | `1.0.0` | release, published on push | `latest` |
+
+Prereleases are hidden from NuGet search unless you tick *Include prerelease*, and `npm install` keeps giving you the `latest` release — a prerelease is only ever installed by asking for it explicitly:
+
+```bash
+dotnet add package TheSpectre.ApiEnvelope.AspNetCore --prerelease
+npm install thespectre-apienvelope-types@beta
+```
+
+`development` builds and packs an alpha on every push but does not push it to NuGet automatically — a published version can never be deleted, only unlisted, so per-commit publishing would accumulate permanently. Publish one deliberately with the **release** workflow's manual run.
+
+---
+
 ## Versioning
 
 The envelope shape is the public API. Breaking it breaks every consumer silently — the code compiles and the frontend stops working. So:
