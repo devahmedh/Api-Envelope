@@ -16,6 +16,10 @@ internal static class ParamNameMap
         "PropertyValue",
         "PropertyPath",
         "CollectionIndex",
+
+        // TotalLength is the length of what the user actually typed — an observation about the
+        // input, not a bound the client renders from. It belongs with PropertyValue.
+        "TotalLength",
     };
 
     /// <summary>Whether <paramref name="placeholder"/> must not reach the wire.</summary>
@@ -30,7 +34,6 @@ internal static class ParamNameMap
         "From" => "min",
         "To" => "max",
         "ComparisonValue" => "comparison",
-        "TotalLength" => "totalLength",
         _ => char.ToLowerInvariant(placeholder[0]) + placeholder[1..],
     };
 }

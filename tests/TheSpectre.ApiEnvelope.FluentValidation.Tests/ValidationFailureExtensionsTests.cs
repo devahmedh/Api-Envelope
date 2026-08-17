@@ -87,6 +87,34 @@ public sealed class ValidationFailureExtensionsTests
     }
 
     [Test]
+    public void ToErrorDetail_DropsTotalLengthBecauseItDescribesTheInputNotTheRule()
+    {
+        var detail = CreateFailure("Title", "TOO_LONG", new Dictionary<string, object>
+        {
+            ["MaxLength"] = 5,
+            ["TotalLength"] = 12,
+        }).ToErrorDetail(Camel);
+
+        Assert.That(detail.Params!.Count, Is.EqualTo(1));
+        Assert.That(detail.Params.ContainsKey("totalLength"), Is.False);
+        Assert.That(detail.Params["max"], Is.EqualTo(5));
+    }
+
+    [Test]
+    public void ToErrorDetail_DropsAZeroMinimumBecauseItIsNotAConstraint()
+    {
+        var detail = CreateFailure("Title", "TOO_LONG", new Dictionary<string, object>
+        {
+            ["MinLength"] = 0,
+            ["MaxLength"] = 5,
+        }).ToErrorDetail(Camel);
+
+        Assert.That(detail.Params!.Count, Is.EqualTo(1));
+        Assert.That(detail.Params.ContainsKey("min"), Is.False);
+        Assert.That(detail.Params["max"], Is.EqualTo(5));
+    }
+
+    [Test]
     public void ToErrorDetail_WithNoPlaceholders_LeavesParamsNull()
     {
         Assert.That(CreateFailure("Code", "REQUIRED").ToErrorDetail(Camel).Params, Is.Null);

@@ -69,8 +69,19 @@ public static class ValidationFailureExtensions
                 continue;
             }
 
+            var canonicalKey = ParamNameMap.ToCanonical(pair.Key);
+
+            // FluentValidation's MaximumLength(n) rule sets its MinLength placeholder to 0 —
+            // there is no minimum. A zero minimum is the absence of a constraint, not a bound
+            // worth putting on the wire, so a client rendering params.min would show "at least
+            // 0 characters" for a rule that never expressed a minimum in the first place.
+            if (canonicalKey == "min" && IsZero(pair.Value))
+            {
+                continue;
+            }
+
             parameters ??= new Dictionary<string, object?>(StringComparer.Ordinal);
-            parameters[ParamNameMap.ToCanonical(pair.Key)] = pair.Value;
+            parameters[canonicalKey] = pair.Value;
         }
 
         return parameters;
@@ -81,4 +92,13 @@ public static class ValidationFailureExtensions
     // down the response instead of simply not being rendered.
     private static bool IsSupported(object? value) =>
         value is null or string or int or long or decimal or double or bool;
+
+    private static bool IsZero(object? value) => value switch
+    {
+        int i => i == 0,
+        long l => l == 0,
+        decimal d => d == 0,
+        double d => d == 0,
+        _ => false,
+    };
 }

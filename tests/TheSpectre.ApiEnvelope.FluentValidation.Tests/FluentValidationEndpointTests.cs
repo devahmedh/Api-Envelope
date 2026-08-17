@@ -99,7 +99,10 @@ public sealed class FluentValidationEndpointTests
             .Single(d => d.GetProperty("field").GetString() == "title");
 
         Assert.That(titleDetail.GetProperty("errorCode").GetString(), Is.EqualTo(ValidationErrorCodes.TooLong));
-        Assert.That(titleDetail.GetProperty("params").GetProperty("max").GetInt32(), Is.EqualTo(5));
+
+        var titleParams = titleDetail.GetProperty("params");
+        Assert.That(titleParams.EnumerateObject().Count(), Is.EqualTo(1));
+        Assert.That(titleParams.GetProperty("max").GetInt32(), Is.EqualTo(5));
     }
 
     [Test]
