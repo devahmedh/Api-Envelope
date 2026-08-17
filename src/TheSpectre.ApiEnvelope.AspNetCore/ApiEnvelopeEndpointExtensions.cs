@@ -29,6 +29,7 @@ public static class ApiEnvelopeEndpointExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.AddEndpointFilter<TBuilder, ApiEnvelopeEndpointFilter>();
+        builder.Finally(endpointBuilder => EnvelopeResponseMetadata.Rewrite(endpointBuilder));
 
         return builder;
     }
