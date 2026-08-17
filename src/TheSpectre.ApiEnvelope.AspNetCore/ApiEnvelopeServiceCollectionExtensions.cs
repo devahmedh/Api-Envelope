@@ -19,7 +19,10 @@ public static class ApiEnvelopeServiceCollectionExtensions
         // MVC filters register application-wide, so controllers need no per-endpoint opt-in.
         // Configure rather than AddControllers: this must not force MVC on a minimal-API app.
         services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(mvc =>
-            mvc.Filters.Add<ApiEnvelopeResultFilter>());
+        {
+            mvc.Filters.Add<ApiEnvelopeResultFilter>();
+            mvc.Conventions.Add(new EnvelopeApiResponseConvention());
+        });
 
         return services;
     }
