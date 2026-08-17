@@ -1,0 +1,113 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify the tag matches Directory.Build.props
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          build_version=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
+          echo "Tag: $GITHUB_REF_NAME  ->  $tag_version"
+          echo "Directory.Build.props: $build_version"
+          if [ "$tag_version" != "$build_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME (version $tag_version) does not match Directory.Build.props (version $build_version). Fix the tag or bump the version before releasing."
+            exit 1
+          fi
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Run the full test suite
+        run: dotnet test --no-build -c Release --verbosity normal
+
+      - name: Pack all four packages
+        run: |
+          rm -rf artifacts
+          for p in TheSpectre.ApiEnvelope TheSpectre.ApiEnvelope.AspNetCore \
+                   TheSpectre.ApiEnvelope.FluentValidation TheSpectre.ApiEnvelope.DataAnnotations; do
+            dotnet pack "src/$p/$p.csproj" -c Release -o artifacts/local-feed
+          done
+          ls artifacts/local-feed
+
+      - name: Assert each package has both target frameworks and a README
+        run: |
+          for pkg in artifacts/local-feed/*.nupkg; do
+            echo "--- $pkg"
+            unzip -l "$pkg" | grep -E 'lib/net8\.0/.*\.dll' || {
+              echo "::error::$pkg is missing lib/net8.0"; exit 1; }
+            unzip -l "$pkg" | grep -E 'lib/net10\.0/.*\.dll' || {
+              echo "::error::$pkg is missing lib/net10.0"; exit 1; }
+            unzip -l "$pkg" | grep -E '(^|/)README\.md$' || {
+              echo "::error::$pkg is missing README.md"; exit 1; }
+          done
+
+      - name: Push packages to nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "artifacts/local-feed/*.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+          dotnet nuget push "artifacts/local-feed/*.snupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Publish the npm types package
+        working-directory: npm/thespectre-apienvelope-types
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm ci
+          npm publish --access public
+
+      - name: Extract the matching CHANGELOG.md section
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          awk -v ver="## [$tag_version]" '
+            $0 == ver { found=1; print; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "::error::No CHANGELOG.md section found for [$tag_version]."
+            exit 1
+          fi
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md
