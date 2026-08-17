@@ -141,16 +141,28 @@ jobs:
           name: packages-${{ steps.version.outputs.version }}
           path: artifacts/local-feed/*
 
-      # Both registries are published in sequence, and nuget.org versions can never be
-      # deleted — only unlisted. An npm credential that fails at push time therefore
-      # leaves a permanent half-published version behind. Authenticate against npm
-      # before anything ships, so a bad token fails the run while both registries are
-      # still untouched.
-      - name: Verify the npm credential authenticates before anything is published
+      # npm is published FIRST, deliberately. The two registries differ in how
+      # recoverable a mistake is: an npm version can be unpublished within 72 hours of
+      # release, whereas a version on nuget.org can never be deleted, only unlisted. The
+      # cheapest failure is therefore the one that happens while nuget.org is still
+      # untouched, which means the less permanent registry goes first.
+      #
+      # A read-only preflight is not a substitute for this ordering. `npm whoami`
+      # authenticates a token but never exercises the publish authorisation path, so a
+      # token that is valid yet lacks the 2FA-bypass property passes `whoami` and then
+      # fails at PUT — by which point nuget.org has already accepted the version
+      # permanently. Ordering is enforcement; a probe is only a hint.
+      - name: Publish the npm types package
         if: steps.version.outputs.publish == 'true'
+        working-directory: npm/thespectre-apienvelope-types
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm whoami
+        run: |
+          npm ci
+          npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+          # --tag matters: without it npm points "latest" at whatever was published last,
+          # so a prerelease would become the default install for everyone.
+          npm publish --access public --tag "${{ steps.version.outputs.npm_tag }}"
 
       - name: Push packages to nuget.org
         if: steps.version.outputs.publish == 'true'
@@ -165,18 +177,6 @@ jobs:
             --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
-
-      - name: Publish the npm types package
-        if: steps.version.outputs.publish == 'true'
-        working-directory: npm/thespectre-apienvelope-types
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm ci
-          npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
-          # --tag matters: without it npm points "latest" at whatever was published last,
-          # so a prerelease would become the default install for everyone.
-          npm publish --access public --tag "${{ steps.version.outputs.npm_tag }}"
 
       - name: Tag the release commit
         if: github.ref_name == 'production'
