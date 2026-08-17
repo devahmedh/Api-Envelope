@@ -5,6 +5,13 @@ namespace TheSpectre.ApiEnvelope.AspNetCore
     {
         public static Microsoft.AspNetCore.Builder.IApplicationBuilder UseApiEnvelope(this Microsoft.AspNetCore.Builder.IApplicationBuilder app) { }
     }
+    public static class ApiEnvelopeEndpointExtensions
+    {
+        public static TBuilder WithApiEnvelope<TBuilder>(this TBuilder builder)
+            where TBuilder : Microsoft.AspNetCore.Builder.IEndpointConventionBuilder { }
+        public static TBuilder WithoutApiEnvelope<TBuilder>(this TBuilder builder)
+            where TBuilder : Microsoft.AspNetCore.Builder.IEndpointConventionBuilder { }
+    }
     public sealed class ApiEnvelopeOptions
     {
         public ApiEnvelopeOptions() { }
