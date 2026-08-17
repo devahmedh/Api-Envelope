@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <IsPackable>true</IsPackable>
+    <PackageId>TheSpectre.ApiEnvelope.FluentValidation</PackageId>
+    <Description>FluentValidation integration for TheSpectre.ApiEnvelope: turns validation failures into stable error KEYS with structured params, so the client owns all translations.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="[12.0.0,13.0.0)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TheSpectre.ApiEnvelope.AspNetCore\TheSpectre.ApiEnvelope.AspNetCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TheSpectre.ApiEnvelope.FluentValidation.Tests" />
+  </ItemGroup>
+
+</Project>

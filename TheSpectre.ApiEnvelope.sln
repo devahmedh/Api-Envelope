@@ -15,6 +15,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheSpectre.ApiEnvelope.AspN
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheSpectre.ApiEnvelope.AspNetCore.Tests", "tests\TheSpectre.ApiEnvelope.AspNetCore.Tests\TheSpectre.ApiEnvelope.AspNetCore.Tests.csproj", "{BC8FE209-FAC6-458B-8346-8F6C5D4DA78D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheSpectre.ApiEnvelope.FluentValidation", "src\TheSpectre.ApiEnvelope.FluentValidation\TheSpectre.ApiEnvelope.FluentValidation.csproj", "{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheSpectre.ApiEnvelope.FluentValidation.Tests", "tests\TheSpectre.ApiEnvelope.FluentValidation.Tests\TheSpectre.ApiEnvelope.FluentValidation.Tests.csproj", "{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +77,30 @@ Global
 		{BC8FE209-FAC6-458B-8346-8F6C5D4DA78D}.Release|x64.Build.0 = Release|Any CPU
 		{BC8FE209-FAC6-458B-8346-8F6C5D4DA78D}.Release|x86.ActiveCfg = Release|Any CPU
 		{BC8FE209-FAC6-458B-8346-8F6C5D4DA78D}.Release|x86.Build.0 = Release|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Debug|x64.Build.0 = Debug|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Debug|x86.Build.0 = Debug|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Release|x64.ActiveCfg = Release|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Release|x64.Build.0 = Release|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Release|x86.ActiveCfg = Release|Any CPU
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4}.Release|x86.Build.0 = Release|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Debug|x64.Build.0 = Debug|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Debug|x86.Build.0 = Debug|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Release|x64.ActiveCfg = Release|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Release|x64.Build.0 = Release|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Release|x86.ActiveCfg = Release|Any CPU
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +110,7 @@ Global
 		{792C55E2-64C6-4F19-A08F-0C12D2595911} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{8AAA9BEF-FED0-41F3-BD58-B8F31F5B0583} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{BC8FE209-FAC6-458B-8346-8F6C5D4DA78D} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{F07FB549-AC4C-4011-A37B-9D97F3DC9CA4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{CBB128F2-8CF3-4451-BABA-052D0D1B22C0} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
