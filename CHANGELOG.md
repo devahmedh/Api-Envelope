@@ -73,6 +73,14 @@ it.
 one preserved and one discarded example side by side. The rule — `^[A-Z][A-Z0-9_]*$` or the value
 is dropped — was load-bearing and discoverable only by reading the source.
 
+**Request data on a failure** now has a section under "Correlation ids", closing the one gap the
+adoption report identified with no replacement. AutoWrapper's `LogRequestDataOnException` has no
+equivalent here and will not get one — but the exception handler already logs the method, path,
+key and correlation id, and Serilog's `EnrichDiagnosticContext` covers the rest. The section
+spells out why the correlation id must be set explicitly there (the logger scope closes before
+the request-completion line is written) and why the request body is a deliberate second step
+rather than part of the snippet.
+
 **The `IExceptionHandler` ordering constraint is documented** next to the existing
 `UseApiEnvelope()` / `UseAuthentication()` note, with the log-only handler pattern spelled out.
 
