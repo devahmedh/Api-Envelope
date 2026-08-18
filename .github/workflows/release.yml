@@ -123,11 +123,12 @@ jobs:
       - name: Run the full test suite
         run: dotnet test --no-build -c Release -p:VersionSuffix=${{ steps.version.outputs.suffix }} --verbosity normal
 
-      - name: Pack all four packages
+      - name: Pack all five packages
         run: |
           rm -rf artifacts
           for p in TheSpectre.ApiEnvelope TheSpectre.ApiEnvelope.AspNetCore \
-                   TheSpectre.ApiEnvelope.FluentValidation TheSpectre.ApiEnvelope.DataAnnotations; do
+                   TheSpectre.ApiEnvelope.FluentValidation TheSpectre.ApiEnvelope.DataAnnotations \
+                   TheSpectre.ApiEnvelope.EntityFrameworkCore; do
             dotnet pack "src/$p/$p.csproj" -c Release \
               -p:VersionSuffix=${{ steps.version.outputs.suffix }} \
               -o artifacts/local-feed
@@ -148,8 +149,8 @@ jobs:
             echo "$entries" | grep -E '^(lib/|README)'
             count=$((count + 1))
           done
-          if [ "$count" -ne 4 ]; then
-            echo "::error::expected 4 packages, packed $count"
+          if [ "$count" -ne 5 ]; then
+            echo "::error::expected 5 packages, packed $count"
             exit 1
           fi
 
