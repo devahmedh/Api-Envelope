@@ -413,13 +413,22 @@ api.MapGet("/projects", (AppDbContext db, int page = 1, int pageSize = 20) =>
 
 `pageCount`, `firstRowOnPage` and `lastRowOnPage` are computed and sent, so no frontend re-derives `Math.ceil(rowCount / pageSize)` and gets the off-by-one wrong.
 
-> **`GetPaged` on `IQueryable<T>` runs synchronously** and makes two database round-trips. For a hot path, query asynchronously yourself and construct `PagedResult<T>` directly:
->
-> ```csharp
-> var count = await query.CountAsync(ct);
-> var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-> return new PagedResult<Project>(items, new PaginationData(page, pageSize, count));
-> ```
+### Database queries
+
+`GetPaged` on `IQueryable<T>` runs **synchronously** — two blocking round-trips. The core package takes no dependency on Entity Framework Core, so it cannot call `CountAsync`/`ToListAsync`. Install `TheSpectre.ApiEnvelope.EntityFrameworkCore` for the asynchronous version:
+
+```bash
+dotnet add package TheSpectre.ApiEnvelope.EntityFrameworkCore
+```
+
+```csharp
+api.MapGet("/projects", (AppDbContext db, int page = 1, int pageSize = 20, CancellationToken ct = default) =>
+    db.Projects.OrderBy(p => p.Id).GetPagedAsync(page, pageSize, ct));
+```
+
+It returns the same `PagedResult<T>`, so the wire shape is unchanged. The extension lives in the `TheSpectre.ApiEnvelope` namespace, so no second `using` is needed.
+
+Keep using the synchronous `GetPaged` for in-memory sequences — it is not a database call and has nothing to await.
 
 ---
 

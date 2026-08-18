@@ -7,13 +7,14 @@ registry — not copied from a prior list on trust. The exact commands used are 
 
 ## Shipped
 
-These are the only dependencies that reach a consumer's build. Three of the four shipped
+These are the only dependencies that reach a consumer's build. Three of the five shipped
 packages ship with **zero** package dependencies — a framework reference is not a package
 dependency, it resolves against the shared runtime already on the machine.
 
 | Package | Version | Used by | Purpose | Licence |
 |---|---|---|---|---|
 | `FluentValidation` | `[12.0.0,13.0.0)` (resolves to `12.0.0`) | `TheSpectre.ApiEnvelope.FluentValidation` | Validator discovery and rule descriptors, so a validator's declared error keys can be read without running validation | Apache-2.0 |
+| `Microsoft.EntityFrameworkCore` | `[8.0.30,9.0.0)` on `net8.0`, `[10.0.11,11.0.0)` on `net10.0` | `TheSpectre.ApiEnvelope.EntityFrameworkCore` | `CountAsync` and `ToListAsync`, so a paged database query executes without blocking the calling thread | MIT |
 | `Microsoft.AspNetCore.App` | framework reference (not a package) | `TheSpectre.ApiEnvelope.AspNetCore`, `TheSpectre.ApiEnvelope.DataAnnotations`, `TheSpectre.ApiEnvelope.FluentValidation` | The HTTP pipeline: middleware, minimal API routing, MVC filters | MIT |
 
 The version range on `FluentValidation` is deliberate, not a habit: the error-code audit
@@ -22,15 +23,30 @@ The version range on `FluentValidation` is deliberate, not a habit: the error-co
 FluentValidation major version could rename those internals, so the reference is pinned to the
 major version that was actually tested against rather than left open-ended with `12.0.0` and up.
 
+The `Microsoft.EntityFrameworkCore` range is bounded at **both** ends for different reasons. The
+upper bound stops an unrelated restore pulling a major version this package was never compiled
+against. The lower bound is the patch actually built and tested against — not `8.0.0` — because
+NuGet resolves a range to its *lowest* satisfying version: an `8.0.0` floor resolves to EF Core
+`8.0.0`, whose nuspec pins `Microsoft.Extensions.Caching.Memory 8.0.0`, carrying advisory
+GHSA-qj66-m88j-hmgj. Every consumer would inherit it. EF Core `8.0.30` declares the patched
+`8.0.1`. A floor of `x.0.0` looks like the permissive, consumer-friendly choice and is in fact
+how a known vulnerability reaches a consumer's build.
+
 `TheSpectre.ApiEnvelope` and `TheSpectre.ApiEnvelope.DataAnnotations` declare no
 `PackageReference` at all — confirmed by their `.csproj` files and by the packed `.nuspec`
 (see Task 4 verification). `TheSpectre.ApiEnvelope.AspNetCore` declares no `PackageReference`
 either; its only dependency is the `Microsoft.AspNetCore.App` framework reference, which NuGet
 does not record as a package dependency.
 
-**Dependency budget: 0 / 0 / 0 / 1** — `TheSpectre.ApiEnvelope`,
+**Dependency budget: 0 / 0 / 0 / 1 / 1** — `TheSpectre.ApiEnvelope`,
 `TheSpectre.ApiEnvelope.AspNetCore` and `TheSpectre.ApiEnvelope.DataAnnotations` ship zero
-package dependencies each; `TheSpectre.ApiEnvelope.FluentValidation` ships exactly one.
+package dependencies each; `TheSpectre.ApiEnvelope.FluentValidation` and
+`TheSpectre.ApiEnvelope.EntityFrameworkCore` ship exactly one each.
+
+`TheSpectre.ApiEnvelope.EntityFrameworkCore` is the first package in the family with a
+heavyweight dependency. That cost is inherent to its purpose — it exists to call EF Core's
+async query operators — and is isolated behind an opt-in package boundary: a consumer who does
+not page a database never resolves it.
 
 ## Test-only (never shipped)
 
@@ -48,6 +64,8 @@ packed into, any shipped `.nupkg` — confirmed by `.nuspec` inspection in Task 
 | `Mono.Cecil` | 0.11.6 (transitive, via `PublicApiGenerator`) | Assembly reflection used to enumerate public API surface | MIT |
 | `System.CodeDom` | 6.0.0 (transitive, via `PublicApiGenerator`) | Code-model rendering used by `PublicApiGenerator` | MIT |
 | `Microsoft.AspNetCore.TestHost` | 8.0.30 (net8.0) / 10.0.11 (net10.0) | In-memory `TestServer` for integration tests, no real socket | MIT |
+| `Microsoft.EntityFrameworkCore.Sqlite` | 8.0.30 (net8.0) / 10.0.11 (net10.0) | Real SQL translation and async execution in the paging tests; the InMemory provider translates no SQL and would pass without exercising the async provider path | MIT |
+| `Microsoft.Data.Sqlite` | transitive, via `Microsoft.EntityFrameworkCore.Sqlite` | The SQLite ADO.NET connection the in-memory test database is held open on | MIT |
 | `typescript` | `^5.9.0` (devDependency, resolves to `5.9.3` at time of writing) | Compiles and type-checks the npm package's `.d.ts` contract; never a runtime dependency of a consumer | Apache-2.0 |
 
 **Note on `NUnit`'s licence:** NUnit is MIT **only from v4 onward**. NUnit 3.x and earlier

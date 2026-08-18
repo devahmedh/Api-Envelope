@@ -7,10 +7,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) �
 "Versioning" in `README.md` for exactly what counts as major, minor and patch for this
 particular library, since the wire shape is the real public API.
 
-All five artifacts (`TheSpectre.ApiEnvelope`, `TheSpectre.ApiEnvelope.AspNetCore`,
-`TheSpectre.ApiEnvelope.FluentValidation`, `TheSpectre.ApiEnvelope.DataAnnotations`, and the npm
-package `thespectre-apienvelope-types`) version in lockstep — one version number covers all of
-them, whether or not a given release touched a particular package.
+All six artifacts (`TheSpectre.ApiEnvelope`, `TheSpectre.ApiEnvelope.AspNetCore`,
+`TheSpectre.ApiEnvelope.FluentValidation`, `TheSpectre.ApiEnvelope.DataAnnotations`,
+`TheSpectre.ApiEnvelope.EntityFrameworkCore`, and the npm package
+`thespectre-apienvelope-types`) version in lockstep — one version number covers all of them,
+whether or not a given release touched a particular package.
 
 ## [1.1.0]
 
@@ -62,6 +63,26 @@ logs one warning listing every difference in converters, `PropertyNamingPolicy` 
 serving controllers and minimal APIs from one host can otherwise serialise the same DTO two
 different ways with no signal anywhere. Minimal-API-only applications are never warned: they have
 no MVC pipeline for the options to disagree with.
+
+**`TheSpectre.ApiEnvelope.EntityFrameworkCore`** — a new package containing one method,
+`IQueryable<T>.GetPagedAsync(page, pageSize, cancellationToken)`. It returns the same
+`PagedResult<T>` the synchronous helper returns, so the wire shape is unchanged, but executes
+both round-trips — the count and the page — asynchronously.
+
+The synchronous `GetPaged` on `IQueryable<T>` blocks the calling thread across two database
+round-trips. On a request-serving thread pool that is thread starvation under load, not a
+style preference. The core package declares no dependencies and therefore cannot call
+`CountAsync`/`ToListAsync`; a provider-specific package can.
+
+The new package references the core package only, not `TheSpectre.ApiEnvelope.AspNetCore` —
+paging is not an HTTP concern, so it stays usable from a background job or a console
+application. Its `Microsoft.EntityFrameworkCore` reference is bounded to one major version per
+target framework (`[8.0.0,9.0.0)` on `net8.0`, `[10.0.0,11.0.0)` on `net10.0`).
+
+Nothing was removed or altered: `PagedResult<T>`, `PaginationData` and both `GetPaged`
+overloads remain in `TheSpectre.ApiEnvelope` exactly as they shipped in 1.0.0 — they are the
+wire contract, pinned by the golden files and mirrored in the TypeScript package, not
+utilities to be relocated.
 
 ### Documentation
 
