@@ -53,4 +53,37 @@ public sealed class GetPagedAsyncTests
             Assert.That(actual.Pagination, Is.EqualTo(expected.Pagination));
         });
     }
+
+    [Test]
+    public void GetPagedAsync_PropagatesCancellation()
+    {
+        using var fixture = new SqliteFixture(rowCount: 57);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // CatchAsync, not ThrowsAsync: EF Core may surface TaskCanceledException, which
+        // derives from OperationCanceledException. ThrowsAsync requires an exact type match
+        // and would fail on the derived type.
+        Assert.CatchAsync<OperationCanceledException>(
+            () => fixture.OrderedRows.GetPagedAsync(page: 1, pageSize: 20, cts.Token));
+    }
+
+    [Test]
+    public void GetPagedAsync_ThrowsOnAQueryThatIsNotBackedByEntityFrameworkCore()
+    {
+        // Asserted rather than handled. Falling back to synchronous enumeration here would
+        // silently reintroduce the blocking call this package exists to remove.
+        var inMemory = new List<Row> { new() { Id = 1, Name = "Row 1" } }.AsQueryable();
+
+        Assert.CatchAsync<InvalidOperationException>(
+            () => inMemory.GetPagedAsync(page: 1, pageSize: 20));
+    }
+
+    [Test]
+    public void GetPagedAsync_ThrowsOnANullQuery()
+    {
+        IQueryable<Row> query = null!;
+
+        Assert.CatchAsync<ArgumentNullException>(() => query.GetPagedAsync(page: 1, pageSize: 20));
+    }
 }
