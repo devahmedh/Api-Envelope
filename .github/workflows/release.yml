@@ -3,9 +3,9 @@ name: release
 # Branch-driven versioning. The base version lives in Directory.Build.props as
 # VersionPrefix; the channel suffix is derived from the branch being pushed:
 #
-#   development  ->  1.0.0-alpha.<run>    prerelease, npm dist-tag "alpha"
-#   testing      ->  1.0.0-beta.<run>     prerelease, npm dist-tag "beta"
-#   production   ->  1.0.0                release,    npm dist-tag "latest"
+#   development  ->  <prefix>-alpha.<run>    prerelease, npm dist-tag "alpha"
+#   testing      ->  <prefix>-beta.<run>     prerelease, npm dist-tag "beta"
+#   production   ->  <prefix>                release,    npm dist-tag "latest"
 #
 # development does not publish automatically — it packs and uploads the alpha as a
 # workflow artifact. Versions on nuget.org can never be deleted, only unlisted, so a

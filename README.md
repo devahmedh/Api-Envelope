@@ -48,6 +48,7 @@ That's all most apps need — it brings the core package with it.
 | `TheSpectre.ApiEnvelope.AspNetCore` | The middleware and filters. **Zero package dependencies** — framework reference only. |
 | `TheSpectre.ApiEnvelope.FluentValidation` | Turn FluentValidation failures into error keys. |
 | `TheSpectre.ApiEnvelope.DataAnnotations` | Same, for `[Required]`, `[StringLength]`, `[Range]`. **Zero dependencies.** |
+| `TheSpectre.ApiEnvelope.EntityFrameworkCore` | Asynchronous paging for database queries. |
 | `thespectre-apienvelope-types` (npm) | TypeScript types for the client. |
 
 Targets **.NET 8** and **.NET 10**.
@@ -585,6 +586,7 @@ The types are verified in CI against the same fixture files the .NET tests asser
 | `.AspNetCore` — MVC | ❌ MVC itself is not AOT-compatible |
 | `.FluentValidation` | ❌ rules are built from expression trees |
 | `.DataAnnotations` | ❌ attribute reflection is the mechanism |
+| `.EntityFrameworkCore` | ❌ Entity Framework Core itself is not AOT-compatible |
 
 **You never declare the wrapper type.** The envelope's own fields are written directly with `Utf8JsonWriter`; only `result` is delegated to your serializer, resolved from the payload's own contract. So this is all you need:
 
@@ -635,7 +637,7 @@ The envelope shape is the public API. Breaking it breaks every consumer silently
 - **Minor** — a new property omitted when null, a new type, member, option or package.
 - **Patch** — anything touching neither the wire shape nor the public API.
 
-This is enforced, not just documented. Byte-exact fixture files pin the JSON, approval files pin every public member, and CI fails any pull request that edits either without an explicit `BREAKING CHANGE:` footer or a `semver:` label. All packages version in lockstep.
+This is enforced, not just documented. Byte-exact fixture files pin the JSON, the core package's approval file pins every public member, and CI fails any pull request that edits either without an explicit `BREAKING CHANGE:` footer or a `semver:` label. The satellite packages' approval files pin their own public members too, but only through their tests — the pull-request guard does not inspect them. All packages version in lockstep.
 
 ---
 

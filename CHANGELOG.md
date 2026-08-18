@@ -15,11 +15,12 @@ whether or not a given release touched a particular package.
 
 ## [1.1.0]
 
-Every change in this release comes from one source: a full migration of an existing production
+Most of this release comes from one source: a full migration of an existing production
 backend from AutoWrapper onto this library — 107 files, 307 rewritten throw sites, 2 709 passing
-tests. Nothing here changes the envelope's wire shape. Two of the three findings produced a green
-build and a silently wrong response, which is the class of defect a 1.0.0 only meets the first
-time it lands in a large existing codebase.
+tests. The one exception is `TheSpectre.ApiEnvelope.EntityFrameworkCore`, a separate addition
+described below. Nothing here changes the envelope's wire shape. Two of the three findings
+produced a green build and a silently wrong response, which is the class of defect a 1.0.0 only
+meets the first time it lands in a large existing codebase.
 
 ### Fixed
 
@@ -87,6 +88,9 @@ Nothing was removed or altered: `PagedResult<T>`, `PaginationData` and both `Get
 overloads remain in `TheSpectre.ApiEnvelope` exactly as they shipped in 1.0.0 — they are the
 wire contract, pinned by the golden files and mirrored in the TypeScript package, not
 utilities to be relocated.
+
+`thespectre-apienvelope-types` has no content change in this release; its version moves because
+all artifacts version in lockstep.
 
 ### Documentation
 

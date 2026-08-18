@@ -27,7 +27,7 @@
 
   <!-- The whole point: consume the PACKAGE, never the project. -->
   <ItemGroup>
-    <PackageReference Include="TheSpectre.ApiEnvelope.AspNetCore" Version="1.0.0" />
+    <PackageReference Include="TheSpectre.ApiEnvelope.AspNetCore" Version="$(VersionPrefix)" />
   </ItemGroup>
 
 </Project>
