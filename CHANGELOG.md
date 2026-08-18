@@ -76,8 +76,12 @@ style preference. The core package declares no dependencies and therefore cannot
 
 The new package references the core package only, not `TheSpectre.ApiEnvelope.AspNetCore` —
 paging is not an HTTP concern, so it stays usable from a background job or a console
-application. Its `Microsoft.EntityFrameworkCore` reference is bounded to one major version per
-target framework (`[8.0.0,9.0.0)` on `net8.0`, `[10.0.0,11.0.0)` on `net10.0`).
+application. Its `Microsoft.EntityFrameworkCore` reference is bounded at both ends per target
+framework (`[8.0.30,9.0.0)` on `net8.0`, `[10.0.11,11.0.0)` on `net10.0`) — the upper bound
+stops an unrelated restore pulling a major version this package was never compiled against, and
+the lower bound is the patch actually tested against rather than `x.0.0`, because NuGet resolves
+a range to its lowest satisfying version. See `PACKAGES.md` for why that distinction is
+security-relevant.
 
 Nothing was removed or altered: `PagedResult<T>`, `PaginationData` and both `GetPaged`
 overloads remain in `TheSpectre.ApiEnvelope` exactly as they shipped in 1.0.0 — they are the
