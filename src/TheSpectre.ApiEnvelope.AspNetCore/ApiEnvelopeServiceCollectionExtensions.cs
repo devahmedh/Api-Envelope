@@ -14,6 +14,12 @@ public static class ApiEnvelopeServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddOptions<ApiEnvelopeOptions>();
+
+        // Strictly before the AddExceptionHandler call below: handlers run in registration
+        // order and the first to return true wins, so anything already registered here silently
+        // outranks this library's handler. UseApiEnvelope() turns what this finds into a warning.
+        ExceptionHandlerOrder.Capture(services);
+
         services.AddExceptionHandler<ApiEnvelopeExceptionHandler>();
 
         // MVC filters register application-wide, so controllers need no per-endpoint opt-in.

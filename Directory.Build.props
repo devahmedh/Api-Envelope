@@ -13,7 +13,7 @@
     <!-- VersionPrefix, not Version: the release pipeline supplies VersionSuffix per branch
          (alpha on development, beta on testing, none on production). Setting Version here
          would override both and defeat that. -->
-    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionPrefix>1.1.0</VersionPrefix>
     <Authors>TheSpectreDev</Authors>
     <Company>TheSpectreDev</Company>
     <Copyright>Copyright (c) TheSpectreDev</Copyright>

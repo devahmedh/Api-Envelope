@@ -1,6 +1,12 @@
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TheSpectre.ApiEnvelope.DataAnnotations.Tests")]
 namespace TheSpectre.ApiEnvelope.DataAnnotations
 {
+    public static class AttributeErrorCodeAudit
+    {
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Scans every type and property in the assembly by reflection, which the trimmer ca" +
+            "nnot root. Intended for a test project, which is never trimmed.")]
+        public static System.Collections.Generic.IReadOnlyList<string> FindAttributesWithProseErrorMessages(System.Reflection.Assembly assembly) { }
+    }
     public static class DataAnnotationsApiEnvelopeExtensions
     {
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddApiEnvelopeDataAnnotations(this Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }

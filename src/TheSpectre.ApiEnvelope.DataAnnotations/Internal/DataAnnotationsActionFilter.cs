@@ -10,11 +10,17 @@ namespace TheSpectre.ApiEnvelope.DataAnnotations.Internal;
 internal sealed class DataAnnotationsActionFilter : IAsyncActionFilter
 {
     private readonly IModelMetadataProvider _metadataProvider;
-    private readonly IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> _json;
+    private readonly IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> _json;
 
+    /// <param name="metadataProvider">Supplies the model metadata the mapper reads attributes from.</param>
+    /// <param name="json">
+    /// MVC's serializer options. Only the naming policy is used, to turn a CLR property path
+    /// into the JSON path the client sees — so it has to be the policy that shaped the request
+    /// body MVC just bound, which is the one <c>AddControllers().AddJsonOptions(...)</c> sets.
+    /// </param>
     public DataAnnotationsActionFilter(
         IModelMetadataProvider metadataProvider,
-        IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> json)
+        IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> json)
     {
         _metadataProvider = metadataProvider;
         _json = json;
@@ -49,6 +55,6 @@ internal sealed class DataAnnotationsActionFilter : IAsyncActionFilter
             ModelStateDetailMapper.Map(
                 context.ModelState,
                 metadata,
-                _json.Value.SerializerOptions.PropertyNamingPolicy));
+                _json.Value.JsonSerializerOptions.PropertyNamingPolicy));
     }
 }

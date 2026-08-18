@@ -112,6 +112,39 @@ Both produce byte-identical responses:
 
 Minimal APIs need `.WithApiEnvelope()` once at the root — MVC filters register application-wide, minimal APIs have no equivalent global hook.
 
+### Which JSON options are read
+
+ASP.NET Core has **two unrelated JSON option objects**, and the envelope reads whichever one belongs to the pipeline that produced the response:
+
+| Producing the response | Configure it with | Object |
+|---|---|---|
+| Controllers, and DataAnnotations `details[].field` paths | `AddControllers().AddJsonOptions(…)` | `Microsoft.AspNetCore.Mvc.JsonOptions` |
+| Minimal APIs, error envelopes, status-code envelopes | `builder.Services.ConfigureHttpJsonOptions(…)` | `Microsoft.AspNetCore.Http.Json.JsonOptions` |
+
+This matters because writing the envelope **bypasses MVC's output formatters by design** — that is what makes a controller and a minimal API produce byte-identical bytes. Bypassing the formatter also bypasses everything registered on it, so the envelope has to read MVC's options directly. A converter registered on only one of the two objects therefore applies to only one half of your API:
+
+```csharp
+// A converter every response must honour, in an app with both controllers and minimal APIs:
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter()));
+
+builder.Services.ConfigureHttpJsonOptions(
+    o => o.SerializerOptions.Converters.Add(new UtcDateTimeJsonConverter()));
+```
+
+`UseApiEnvelope()` compares the two at startup and logs one warning when an application hosting controllers finds them diverging in **converters**, **`PropertyNamingPolicy`** or **`DefaultIgnoreCondition`** — the three settings that change what a client actually receives:
+
+```
+warn: TheSpectre.ApiEnvelope.AspNetCore
+      MVC and minimal-API JSON options diverge, so controllers and minimal-API endpoints in
+      this application will not serialise identically: converter 'UtcDateTimeJsonConverter' is
+      registered on AddControllers().AddJsonOptions(...) but not on ConfigureHttpJsonOptions(...).
+```
+
+A minimal-API-only application never sees this warning: it has no MVC pipeline for the options to disagree with.
+
+> The failure this replaces was silent. A `DateTime` converter that pins values to UTC, registered the documented MVC way, was skipped for enveloped responses — so a client at UTC+3 read every calendar date one day early. Nothing threw, and the build was green.
+
 ---
 
 ## The envelope
@@ -171,6 +204,35 @@ public sealed class ProjectCodeTakenException : AppException
     public ProjectCodeTakenException(string code)
         : base("PROJECT_CODE_TAKEN", $"code '{code}' already exists", 409) { }
 }
+```
+
+### If the application already has an `IExceptionHandler`
+
+Register `AddApiEnvelope()` **before** any `AddExceptionHandler(...)` the application already has. Handlers run in registration order and the first one returning `true` wins, so a catch-all registered ahead of the envelope claims every exception — including `AppException`, whose status code goes with it. A 401 login failure arrives at the client as a 500, and the package looks correctly installed the whole time.
+
+The other fix, when the existing handler must keep running first, is to make it log-only:
+
+```csharp
+public sealed class LoggingExceptionHandler(ILogger<LoggingExceptionHandler> logger)
+    : IExceptionHandler
+{
+    public ValueTask<bool> TryHandleAsync(HttpContext context, Exception ex, CancellationToken ct)
+    {
+        logger.LogError(ex, "Unhandled exception on {Path}", context.Request.Path);
+
+        // false — record the failure, let the envelope write the response.
+        return ValueTask.FromResult(false);
+    }
+}
+```
+
+`UseApiEnvelope()` warns at startup when it finds a handler registered ahead of its own:
+
+```
+warn: TheSpectre.ApiEnvelope.AspNetCore
+      ProblemDetailsExceptionHandler is registered as an IExceptionHandler before
+      AddApiEnvelope(), so it runs first and any exception it handles never reaches the
+      envelope — AppException included, which means its status code is lost too.
 ```
 
 ### Responses no endpoint produced
@@ -284,6 +346,35 @@ builder.Services.AddApiEnvelopeDataAnnotations();
 ```
 
 This also replaces `[ApiController]`'s automatic `ValidationProblemDetails` response, which is server-composed English prose.
+
+#### `ErrorMessage` must be `SCREAMING_SNAKE_CASE`
+
+DataAnnotations has no slot for an error key, so the key travels in `ErrorMessage` — the same property that normally holds prose. Only `^[A-Z][A-Z0-9_]*$` is read as a key. **Anything else is discarded** and replaced with a key inferred from the failing attribute, because server-authored English must never reach a client.
+
+```csharp
+[Required(ErrorMessage = "EMAIL_INVALID")]   // preserved verbatim
+[Required(ErrorMessage = "EmailInvalid")]    // discarded → "REQUIRED"
+```
+
+```jsonc
+{ "field": "email", "errorCode": "EMAIL_INVALID" }   // the key you wrote
+{ "field": "email", "errorCode": "REQUIRED" }        // inferred; your key never shipped
+```
+
+The discarded case is the dangerous one: the response still carries a plausible key, just not yours, so nothing looks wrong until a translation lookup misses in the running client. Catch it with one test:
+
+```csharp
+[Test]
+public void AllValidationAttributes_UseKeysNotProse()
+{
+    var findings = AttributeErrorCodeAudit.FindAttributesWithProseErrorMessages(
+        typeof(CreateProject).Assembly);
+
+    Assert.That(findings, Is.Empty);
+}
+```
+
+> **This rule is DataAnnotations-only.** FluentValidation has a real error-code slot, so the key goes in `.WithErrorCode(...)` and survives in any casing; `ErrorMessage` there is ignored entirely rather than pattern-matched. A FluentValidation key that never arrives is almost always a key written into `.WithMessage(...)` instead — which `ValidatorErrorCodeAudit` above catches, because the rule is then left carrying FluentValidation's `NotEmptyValidator`-style default.
 
 > **Both integrations produce identical `details[]`** — same field names, same keys, same `params` keys — enforced by a shared test suite run against both. Your client has one contract regardless of which library an API happens to use.
 
@@ -487,9 +578,9 @@ Work flows in one direction: **`development` → `testing` → `production`**. T
 
 | Branch | Version | NuGet | npm dist-tag |
 |---|---|---|---|
-| `development` | `1.0.0-alpha.<build>` | prerelease, published on demand | `alpha` |
-| `testing` | `1.0.0-beta.<build>` | prerelease, published on push | `beta` |
-| `production` | `1.0.0` | release, published on push | `latest` |
+| `development` | `1.1.0-alpha.<build>` | prerelease, published on demand | `alpha` |
+| `testing` | `1.1.0-beta.<build>` | prerelease, published on push | `beta` |
+| `production` | `1.1.0` | release, published on push | `latest` |
 
 Prereleases are hidden from NuGet search unless you tick *Include prerelease*, and `npm install` keeps giving you the `latest` release — a prerelease is only ever installed by asking for it explicitly:
 

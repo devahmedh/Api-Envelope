@@ -12,6 +12,77 @@ All five artifacts (`TheSpectre.ApiEnvelope`, `TheSpectre.ApiEnvelope.AspNetCore
 package `thespectre-apienvelope-types`) version in lockstep — one version number covers all of
 them, whether or not a given release touched a particular package.
 
+## [1.1.0]
+
+Every change in this release comes from one source: a full migration of an existing production
+backend from AutoWrapper onto this library — 107 files, 307 rewritten throw sites, 2 709 passing
+tests. Nothing here changes the envelope's wire shape. Two of the three findings produced a green
+build and a silently wrong response, which is the class of defect a 1.0.0 only meets the first
+time it lands in a large existing codebase.
+
+### Fixed
+
+**Controllers now serialise the envelope with MVC's JSON options.** `AddControllers().AddJsonOptions(…)`
+configures `Microsoft.AspNetCore.Mvc.JsonOptions`; the envelope previously read
+`Microsoft.AspNetCore.Http.Json.JsonOptions` on every path, so a converter registered the
+documented MVC way was skipped for every enveloped controller response. The failure was silent:
+a `DateTime` converter pinning values to UTC never ran, and a client at UTC+3 read every
+calendar date one day early, with nothing thrown and a green build. `ApiEnvelopeResultFilter`
+and the DataAnnotations field-path mapper now read MVC's options; minimal APIs, error envelopes
+and status-code envelopes continue to read `Http.Json.JsonOptions`, which is what their own
+pipelines bind with.
+
+> **Behaviour change.** An MVC application that compensated for the old behaviour by registering
+> its converters or naming policy on `ConfigureHttpJsonOptions(…)` only will find those settings
+> no longer applied to controller responses. Register them on both objects — the new startup
+> warning below names exactly what is missing where.
+
+### Added
+
+**A startup warning when another `IExceptionHandler` is registered first.** Handlers run in
+registration order and the first one returning `true` wins, so a catch-all registered before
+`AddApiEnvelope()` claims every exception the envelope would have handled — `AppException`
+included, which loses its status code with it. A 401 login failure reaches the client as a 500
+with the other handler's body, and the package looks correctly installed throughout.
+`UseApiEnvelope()` now names any handler registered ahead of its own and states both remedies:
+register `AddApiEnvelope()` first, or make the other handler return `false` so it logs without
+writing the response.
+
+**`AttributeErrorCodeAudit` for DataAnnotations.** The counterpart to
+`ValidatorErrorCodeAudit`: it lists every `ValidationAttribute` whose `ErrorMessage` is prose
+rather than a `SCREAMING_SNAKE_CASE` key, and so will be discarded in favour of a key inferred
+from the attribute. `PascalCase` is the case worth catching — it looks enough like a key to
+survive review, and the response still carries a plausible one, so the mismatch surfaces only as
+a missed translation lookup in the running client.
+
+**A startup warning when the two JSON option objects diverge.** `UseApiEnvelope()` compares
+`Mvc.JsonOptions` against `Http.Json.JsonOptions` in applications that host controllers, and
+logs one warning listing every difference in converters, `PropertyNamingPolicy` or
+`DefaultIgnoreCondition` — the three settings that change what a client receives. An application
+serving controllers and minimal APIs from one host can otherwise serialise the same DTO two
+different ways with no signal anywhere. Minimal-API-only applications are never warned: they have
+no MVC pipeline for the options to disagree with.
+
+### Documentation
+
+**Which JSON options each pipeline reads** is now a table in the Controllers quick-start section
+of `README.md`, with the divergence warning's text and the UTC-converter failure that motivated
+it.
+
+**The `ErrorMessage` key pattern is documented**, in the DataAnnotations validation section, with
+one preserved and one discarded example side by side. The rule — `^[A-Z][A-Z0-9_]*$` or the value
+is dropped — was load-bearing and discoverable only by reading the source.
+
+**The `IExceptionHandler` ordering constraint is documented** next to the existing
+`UseApiEnvelope()` / `UseAuthentication()` note, with the log-only handler pattern spelled out.
+
+**FluentValidation does not share the key pattern**, and the README now says so where the
+confusion arises. FluentValidation has a real `ErrorCode` slot, so a key set with
+`.WithErrorCode(...)` survives in any casing and the message is ignored entirely rather than
+pattern-matched. A FluentValidation key that never arrives is almost always one written into
+`.WithMessage(...)` instead, which leaves the rule carrying FluentValidation's own
+`NotEmptyValidator`-style default — the case `ValidatorErrorCodeAudit` already catches.
+
 ## [1.0.0]
 
 Initial release.
