@@ -16,11 +16,21 @@ namespace TheSpectre.ApiEnvelope.AspNetCore.Internal;
 internal sealed class ApiEnvelopeResultFilter : IAsyncAlwaysRunResultFilter
 {
     private readonly ApiEnvelopeOptions _options;
-    private readonly IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> _json;
+    private readonly IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> _json;
 
+    /// <param name="options">The envelope options.</param>
+    /// <param name="json">
+    /// MVC's serializer options — the ones <c>AddControllers().AddJsonOptions(...)</c>
+    /// configures. This filter only ever runs inside MVC, so it must serialise a controller's
+    /// payload with the options that controller's author configured. Reading
+    /// <c>Http.Json.JsonOptions</c> here instead would silently drop every converter registered
+    /// the documented MVC way, because writing the envelope deliberately bypasses MVC's output
+    /// formatters (see <see cref="EnvelopeActionResult"/>) and therefore bypasses everything
+    /// registered on them.
+    /// </param>
     public ApiEnvelopeResultFilter(
         IOptions<ApiEnvelopeOptions> options,
-        IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> json)
+        IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> json)
     {
         _options = options.Value;
         _json = json;
@@ -35,7 +45,7 @@ internal sealed class ApiEnvelopeResultFilter : IAsyncAlwaysRunResultFilter
             if (SuccessEnvelope.ShouldWrap(context.HttpContext, _options, value, statusCode))
             {
                 context.Result = new EnvelopeActionResult(
-                    value, statusCode, _options, _json.Value.SerializerOptions);
+                    value, statusCode, _options, _json.Value.JsonSerializerOptions);
             }
             else if (!SuccessEnvelope.IsSuccessStatus(statusCode)
                 && value is not IApiResponse
@@ -46,7 +56,7 @@ internal sealed class ApiEnvelopeResultFilter : IAsyncAlwaysRunResultFilter
                 // discarding whatever value it carried (ValidationProblemDetails, an anonymous
                 // object, ...). NoEnvelope and an already-built ApiResponse both still opt out.
                 context.Result = new ErrorEnvelopeActionResult(
-                    statusCode, _options, _json.Value.SerializerOptions);
+                    statusCode, _options, _json.Value.JsonSerializerOptions);
             }
         }
 

@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using TheSpectre.ApiEnvelope.AspNetCore.Internal;
@@ -8,7 +7,7 @@ using TheSpectre.ApiEnvelope.AspNetCore.Internal;
 namespace TheSpectre.ApiEnvelope.DataAnnotations.Internal;
 
 /// <summary>Turns MVC's <see cref="ModelStateDictionary"/> into envelope details.</summary>
-internal static partial class ModelStateDetailMapper
+internal static class ModelStateDetailMapper
 {
     /// <summary>Maps every model-state error to an <see cref="ErrorDetail"/>.</summary>
     internal static IReadOnlyList<ErrorDetail> Map(
@@ -46,7 +45,7 @@ internal static partial class ModelStateDetailMapper
     {
         // 1. The ErrorMessage is itself the key. It also tells us WHICH attribute failed, which
         //    is the only reliable way to disambiguate a property carrying several of them.
-        if (errorMessage is not null && KeyPattern().IsMatch(errorMessage))
+        if (ErrorCodeKey.IsKey(errorMessage))
         {
             foreach (var attribute in attributes)
             {
@@ -113,7 +112,4 @@ internal static partial class ModelStateDetailMapper
 
         return attributes;
     }
-
-    [GeneratedRegex("^[A-Z][A-Z0-9_]*$", RegexOptions.CultureInvariant)]
-    private static partial Regex KeyPattern();
 }

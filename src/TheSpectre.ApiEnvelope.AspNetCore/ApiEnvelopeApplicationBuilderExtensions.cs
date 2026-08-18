@@ -24,12 +24,25 @@ public static class ApiEnvelopeApplicationBuilderExtensions
     /// middleware and those responses ship with an empty body. That failure is silent and
     /// appears only in production, because a developer holding a valid token never sees it.
     /// </para>
+    /// <para>
+    /// A second ordering constraint lives on the service side: register
+    /// <c>AddApiEnvelope()</c> <b>before</b> any <c>AddExceptionHandler(...)</c> the application
+    /// already has, because handlers run in registration order and the first one returning
+    /// <see langword="true"/> wins. This method warns when it finds the opposite.
+    /// </para>
     /// </remarks>
     /// <param name="app">The application builder.</param>
     /// <exception cref="ArgumentNullException"><paramref name="app"/> is null.</exception>
     public static IApplicationBuilder UseApiEnvelope(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
+
+        // Runs here rather than in AddApiEnvelope() because service registration order is not
+        // guaranteed: a consumer may call AddApiEnvelope() before AddControllers().AddJsonOptions
+        // and the comparison would then read options nobody had configured yet. By the time the
+        // pipeline is being built, every ConfigureServices callback has run.
+        JsonOptionsDivergence.WarnIfDiverged(app.ApplicationServices);
+        ExceptionHandlerOrder.WarnIfPreceded(app.ApplicationServices);
 
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseExceptionHandler(new ExceptionHandlerOptions
