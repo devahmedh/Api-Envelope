@@ -61,9 +61,10 @@ public sealed class GetPagedAsyncTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // CatchAsync, not ThrowsAsync: EF Core may surface TaskCanceledException, which
-        // derives from OperationCanceledException. ThrowsAsync requires an exact type match
-        // and would fail on the derived type.
+        // CatchAsync here and ONLY here: EF Core may surface TaskCanceledException, which
+        // derives from OperationCanceledException, and ThrowsAsync requires an exact type
+        // match. The other two tests in this file use ThrowsAsync — accepting derived types
+        // is a real cost, paid only where a derived type is genuinely expected.
         Assert.CatchAsync<OperationCanceledException>(
             () => fixture.OrderedRows.GetPagedAsync(page: 1, pageSize: 20, cts.Token));
     }
@@ -73,9 +74,14 @@ public sealed class GetPagedAsyncTests
     {
         // Asserted rather than handled. Falling back to synchronous enumeration here would
         // silently reintroduce the blocking call this package exists to remove.
+        //
+        // ThrowsAsync, not CatchAsync: the exact type matters here. ObjectDisposedException
+        // derives from InvalidOperationException, so accepting derived types would let a
+        // prematurely-disposed context satisfy a test whose name promises to catch something
+        // else entirely.
         var inMemory = new List<Row> { new() { Id = 1, Name = "Row 1" } }.AsQueryable();
 
-        Assert.CatchAsync<InvalidOperationException>(
+        Assert.ThrowsAsync<InvalidOperationException>(
             () => inMemory.GetPagedAsync(page: 1, pageSize: 20));
     }
 
@@ -84,6 +90,8 @@ public sealed class GetPagedAsyncTests
     {
         IQueryable<Row> query = null!;
 
-        Assert.CatchAsync<ArgumentNullException>(() => query.GetPagedAsync(page: 1, pageSize: 20));
+        // ThrowsAsync: ArgumentNullException.ThrowIfNull throws exactly this type, so there is
+        // no derived-type ambiguity to accommodate.
+        Assert.ThrowsAsync<ArgumentNullException>(() => query.GetPagedAsync(page: 1, pageSize: 20));
     }
 }
