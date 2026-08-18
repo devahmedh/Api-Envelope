@@ -437,6 +437,31 @@ The id is pushed into the `ILogger` scope, so every log line written during the 
 app.MapGet("/whoami", (HttpContext ctx) => ctx.GetCorrelationId());
 ```
 
+### Request data on a failure
+
+The exception handler already logs the method, path, `errorCode`, correlation id and the exception itself. What it does not log is the **request** that caused it — the equivalent of AutoWrapper's `LogRequestDataOnException`, and the one piece of it worth missing during support triage. That belongs to your logging pipeline rather than this library, and Serilog already has the hook:
+
+```csharp
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        // Explicit: the correlation-id logger scope is opened inside UseApiEnvelope(), and
+        // this line is written after it closes — so it would not inherit the id otherwise.
+        diagnosticContext.Set("CorrelationId", httpContext.GetCorrelationId());
+        diagnosticContext.Set("Endpoint", httpContext.GetEndpoint()?.DisplayName);
+        diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
+        diagnosticContext.Set("User", httpContext.User.Identity?.Name);
+    };
+});
+
+app.UseApiEnvelope();   // inside the request-logging middleware
+```
+
+The completion line and the envelope's own error line now share a correlation id, so one query returns both. Serilog levels the completion line by status code, so a 409 `AppException` stays at Information while a 500 is raised to Error.
+
+The **request body** is a deliberate second step: it is not readable after model binding without `HttpRequest.EnableBuffering()` and a manual rewind, and it is the single most likely place in a request to find a password, a token or personal data. Log it on failure only, and redact before it reaches a sink — the same reasoning that makes response-body logging a non-goal here applies to it.
+
 ---
 
 ## Configuration
@@ -566,7 +591,7 @@ CI publishes a real native binary and curls it on every commit, so this is verif
 ## Non-goals
 
 - **No RFC 7807 `ProblemDetails`.** It centres on human-readable `title` and `detail` — exactly what this library exists to keep off the wire.
-- **No response body logging.** Responses carry business content; logging them by default is a data-exposure default.
+- **No response body logging.** Responses carry business content; logging them by default is a data-exposure default. Request diagnostics on a failure are a different question, and a supported one — see [Request data on a failure](#request-data-on-a-failure).
 - **No content negotiation.** The envelope is always `application/json`.
 - **No C# client unwrapper.** The envelope is trivial to deserialize, and the intended clients are TypeScript.
 
