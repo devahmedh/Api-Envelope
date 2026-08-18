@@ -7,20 +7,19 @@
     <Description>Asynchronous paging for Entity Framework Core queries, returning the same PagedResult&lt;T&gt; shape TheSpectre.ApiEnvelope puts in the response envelope.</Description>
   </PropertyGroup>
 
-  <!-- Bounded to one major version per target framework. An open-ended range lets an
-       unrelated restore in a consumer's solution pull a major EF Core this package was
-       never compiled or tested against. Mirrors FluentValidation [12.0.0,13.0.0). -->
+  <!-- Bounded above to one major version: an open-ended range lets an unrelated restore in a
+       consumer's solution pull a major EF Core this package was never compiled against.
+       Bounded below at the patch actually built and tested against, NOT x.0.0: NuGet resolves
+       a range to its lowest satisfying version, so an 8.0.0 floor resolves to EF Core 8.0.0,
+       whose nuspec pins Microsoft.Extensions.Caching.Memory 8.0.0 - a known advisory
+       (GHSA-qj66-m88j-hmgj) that every consumer would inherit. EF Core 8.0.30 declares the
+       patched 8.0.1. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="[8.0.0,9.0.0)" />
-    <!-- Floor of the range above (8.0.0) transitively pulls Microsoft.Extensions.Caching.Memory
-         8.0.0, which carries a known high-severity advisory (GHSA-qj66-m88j-hmgj). Pinning to
-         the patched 8.0.1 - the same minimum EF Core 8.0.30 itself declares - satisfies restore's
-         security audit without widening the EF Core range above. -->
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="[8.0.30,9.0.0)" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="[10.0.0,11.0.0)" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="[10.0.11,11.0.0)" />
   </ItemGroup>
 
   <!-- Core only. Paging is not an HTTP concern, so this package stays usable from a
