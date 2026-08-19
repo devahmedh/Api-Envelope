@@ -104,16 +104,16 @@ internal static class EnvelopeResponseWriter
         Exception? exception,
         string correlationId)
     {
-        var factory = context.RequestServices?.GetService<ILoggerFactory>();
+        var loggers = context.RequestServices?.GetService<EnvelopeLoggers>();
 
-        if (factory is null)
+        if (loggers is null)
         {
             return;
         }
 
         if (errorCode == ErrorCodes.ValidationFailed && details is { Count: > 0 })
         {
-            var validation = factory.CreateLogger(LoggerCategories.Validation);
+            var validation = loggers.Validation;
 
             // Checked before formatting: without this the summary string is built and thrown
             // away on every request the category is silenced for.
@@ -137,7 +137,7 @@ internal static class EnvelopeResponseWriter
 
         if (exception is not null)
         {
-            var failure = factory.CreateLogger(LoggerCategories.Exception);
+            var failure = loggers.Exception;
 
             if (!failure.IsEnabled(LogLevel.Error))
             {
@@ -155,7 +155,7 @@ internal static class EnvelopeResponseWriter
             return;
         }
 
-        var status = factory.CreateLogger(LoggerCategories.StatusCode);
+        var status = loggers.StatusCode;
 
         if (!status.IsEnabled(LogLevel.Debug))
         {
