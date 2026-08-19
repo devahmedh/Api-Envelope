@@ -146,6 +146,20 @@ A minimal-API-only application never sees this warning: it has no MVC pipeline f
 
 > The failure this replaces was silent. A `DateTime` converter that pins values to UTC, registered the documented MVC way, was skipped for enveloped responses — so a client at UTC+3 read every calendar date one day early. Nothing threw, and the build was green.
 
+### Configuring JSON once
+
+Controllers and minimal APIs read different `JsonSerializerOptions` objects. Register on both in one call:
+
+```csharp
+builder.Services.AddApiEnvelopeJson(json =>
+{
+    json.Converters.Add(new UtcDateTimeJsonConverter());
+    json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+});
+```
+
+This is a convenience over the framework's own two objects, not a third place to configure JSON. The envelope has no serializer options of its own — the payload is yours, and it should serialise the way your application serialises it everywhere else. In a minimal-API-only application the MVC half is inert.
+
 ---
 
 ## The envelope
@@ -449,7 +463,7 @@ app.MapGet("/whoami", (HttpContext ctx) => ctx.GetCorrelationId());
 
 ### Request data on a failure
 
-The exception handler already logs the method, path, `errorCode`, correlation id and the exception itself. What it does not log is the **request** that caused it — the equivalent of AutoWrapper's `LogRequestDataOnException`, and the one piece of it worth missing during support triage. That belongs to your logging pipeline rather than this library, and Serilog already has the hook:
+Every error response already logs the method, path, `errorCode` and correlation id — and, when there is one, the exception itself. What is not logged is the **request** that caused it — the equivalent of AutoWrapper's `LogRequestDataOnException`, and the one piece of it worth missing during support triage. That belongs to your logging pipeline rather than this library, and Serilog already has the hook:
 
 ```csharp
 app.UseSerilogRequestLogging(options =>
@@ -471,6 +485,54 @@ app.UseApiEnvelope();   // inside the request-logging middleware
 The completion line and the envelope's own error line now share a correlation id, so one query returns both. Serilog levels the completion line by status code, so a 409 `AppException` stays at Information while a 500 is raised to Error.
 
 The **request body** is a deliberate second step: it is not readable after model binding without `HttpRequest.EnableBuffering()` and a manual rewind, and it is the single most likely place in a request to find a password, a token or personal data. Log it on failure only, and redact before it reaches a sink — the same reasoning that makes response-body logging a non-goal here applies to it.
+
+---
+
+## Logging
+
+Every error response is recorded under one of three categories. The category, not an option, is how you control what is logged — so it changes per environment from `appsettings.json` without a redeploy.
+
+| Category | What it records | Default |
+|---|---|---|
+| `TheSpectre.ApiEnvelope.Validation` | A validation failure that carries at least one field-level detail, with the failed fields and their keys | `Information` — on |
+| `TheSpectre.ApiEnvelope.StatusCode` | A bare status-code envelope: routing 404, authentication 401 | `Debug` — off |
+| `TheSpectre.ApiEnvelope.Exception` | Every other failure, with the exception attached | `Error` — on |
+
+The `Exception` category is not exclusively `Error`: a cancelled client request logs there at `Information` with no exception attached, and an exception on a bypassed path (`/health`, `/metrics`, a `[NoEnvelope]` endpoint) logs there at `Warning` — the one entry that exists so a failure outside the envelope still leaves a trace. Raising that category's minimum above `Warning` silences it.
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "TheSpectre.ApiEnvelope.StatusCode": "Information"
+    }
+  }
+}
+```
+
+**A validation failure is not an error.** It logs at `Information` with no exception attached, because a user mistyping a form is not a fault and a stack trace from a validation filter describes this library rather than the input. Raise the category to `Error` if you want them back in the error stream.
+
+**Response bodies are never logged.** A log store has a different audience and retention period than a response. What this library *composes* into a log line is which rule was broken — field, key, count — never the submitted value. Two things sit outside that guarantee. The `Exception` category forwards a third-party exception object, and this library does not control what that exception's own message contains. And a field name is whatever the model binder produced — for dictionary or collection binding, that path embeds the key the caller sent.
+
+### On .NET 8 and .NET 9, silence the framework's duplicate
+
+ASP.NET Core's own exception handler middleware writes its own `Error` entry, with the exception attached, for every exception it routes to an `IExceptionHandler` — this library's included. [.NET 10 suppresses that for handled exceptions](https://learn.microsoft.com/aspnet/core/breaking-changes/10/exception-handler-diagnostics-suppressed); .NET 8 and 9 always emit it.
+
+So on .NET 8 and 9, every error is recorded twice — once by this library, once by the framework — and a validation failure still produces a framework `Error` entry with a stack trace, no matter what category you put it in.
+
+Since this library now records every error envelope itself, the framework's entry is redundant. Silence it:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware": "None"
+    }
+  }
+}
+```
+
+Silencing the whole category costs more than the duplicate, though. A handled exception still reaches `TheSpectre.ApiEnvelope.Exception` at `Error` with the exception attached, but the same middleware also logs two warnings this library does not reproduce: *"The response has already started, the error handler will not be executed."* and *"An exception was thrown attempting to execute the error handler."* `ApiEnvelopeExceptionHandler` returns `false` on `Response.HasStarted` without logging — and in practice that branch never runs, because the framework performs its own `HasStarted` check and rethrows before invoking any `IExceptionHandler`. So an exception thrown after the response has started (streaming, SSE, a chunked write), or a failure inside the error-writing path itself, would now log nothing at all. To drop only the duplicate, filter by `EventId` at the provider instead of silencing the category — Serilog and NLog both support this — and remove only `UnhandledException`. On .NET 10 this section does not apply.
 
 ---
 
@@ -614,9 +676,11 @@ Work flows in one direction: **`development` → `testing` → `production`**. T
 
 | Branch | Version | NuGet | npm dist-tag |
 |---|---|---|---|
-| `development` | `1.1.0-alpha.<build>` | prerelease, published on demand | `alpha` |
-| `testing` | `1.1.0-beta.<build>` | prerelease, published on push | `beta` |
-| `production` | `1.1.0` | release, published on push | `latest` |
+| `development` | `<version>-alpha.<build>` | prerelease, published on demand | `alpha` |
+| `testing` | `<version>-beta.<build>` | prerelease, published on push | `beta` |
+| `production` | `<version>` | release, published on push | `latest` |
+
+`<version>` is `VersionPrefix` in `Directory.Build.props` — the single place the number is set, so bumping it there is the only step a release needs and this table can never fall behind it again.
 
 Prereleases are hidden from NuGet search unless you tick *Include prerelease*, and `npm install` keeps giving you the `latest` release — a prerelease is only ever installed by asking for it explicitly:
 

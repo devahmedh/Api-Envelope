@@ -1,6 +1,6 @@
 {
   "name": "thespectre-apienvelope-types",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "TypeScript contract for the TheSpectre.ApiEnvelope unified API response envelope.",
   "license": "MIT",
   "types": "index.d.ts",
