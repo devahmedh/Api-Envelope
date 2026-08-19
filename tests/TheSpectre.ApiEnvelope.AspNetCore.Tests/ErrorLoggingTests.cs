@@ -5,9 +5,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Configuration;
 using NUnit.Framework;
 using TheSpectre.ApiEnvelope.AspNetCore.Internal;
 
@@ -191,6 +193,148 @@ public sealed class ErrorLoggingTests
         });
     }
 
+    /// <summary>
+    /// The final 1.2.0 review found that nothing in the suite ever configures a level for one
+    /// of these three categories, so the <c>IsEnabled</c> guard in <c>EnvelopeResponseWriter</c>
+    /// is exercised in neither direction. Raising only <see cref="LoggerCategories.Validation"/>
+    /// to <see cref="LogLevel.Warning"/> closes that: a validation failure logs at Information,
+    /// so the guard must now suppress it.
+    /// </summary>
+    [Test]
+    public async Task ConfiguredCategoryFilter_SuppressesTheRaisedCategoryButNotOthers()
+    {
+        var (host, recorder) = CreateHost(
+            logging => logging.AddFilter(LoggerCategories.Validation, LogLevel.Warning));
+        using (host)
+        {
+            await host.GetTestClient().PostAsJsonAsync("/projects", new { title = "" });
+            await host.GetTestClient().GetAsync("/does-not-exist");
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                recorder.Entries.Any(e => e.Category == LoggerCategories.Validation),
+                Is.False,
+                "The Validation category was raised to Warning; its Information entry must be suppressed.");
+
+            // Proves the suppression above is the filter working, not logging having broken
+            // outright: StatusCode was never raised, so its Debug entry must still appear.
+            Assert.That(
+                recorder.Entries.Any(e => e.Category == LoggerCategories.StatusCode),
+                Is.True,
+                "The StatusCode category was not raised; its Debug entry must still be recorded.");
+        });
+    }
+
+    /// <summary>
+    /// The test that justifies holding a cached <c>EnvelopeLoggers</c> instance rather than
+    /// resolving <see cref="ILoggerFactory"/> per response: the cached <see cref="ILogger"/>
+    /// references are the very same objects <see cref="ILoggerFactory"/> keeps in its own
+    /// dictionary, and it recomputes their filter rules in place on a configuration change. A
+    /// level change made after the loggers were cached must therefore still take effect.
+    /// </summary>
+    [Test]
+    public async Task CachedLoggers_StillReflectALiveConfigurationChange()
+    {
+        var (host, recorder, configuration, settings) = CreateHostWithReloadableLoggingConfiguration();
+        using (host)
+        {
+            await host.GetTestClient().PostAsJsonAsync("/projects", new { title = "" });
+
+            Assert.That(
+                recorder.Entries.Any(e => e.Category == LoggerCategories.Validation),
+                Is.True,
+                "Sanity check: at the initial Information level the first request's entry must be recorded.");
+
+            settings["LogLevel:TheSpectre.ApiEnvelope.Validation"] = "Warning";
+            configuration.Reload();
+
+            await host.GetTestClient().PostAsJsonAsync("/projects", new { title = "" });
+        }
+
+        Assert.That(
+            recorder.Entries.Count(e => e.Category == LoggerCategories.Validation),
+            Is.EqualTo(1),
+            "Only the first request should have logged. If the cached logger had frozen the " +
+            "filter it held when EnvelopeLoggers was constructed, the second request would have " +
+            "logged too, and this count would be 2.");
+    }
+
+    private static (
+        IHost Host,
+        RecordingLoggerProvider Recorder,
+        IConfigurationRoot Configuration,
+        Dictionary<string, string?> Settings) CreateHostWithReloadableLoggingConfiguration()
+    {
+        var recorder = new RecordingLoggerProvider();
+        var settings = new Dictionary<string, string?>
+        {
+            ["LogLevel:TheSpectre.ApiEnvelope.Validation"] = "Information",
+        };
+
+        var configuration = new ConfigurationBuilder()
+            .Add(new ReloadableConfigurationSource(settings))
+            .Build();
+
+        var host = new HostBuilder().ConfigureWebHost(web =>
+        {
+            web.UseTestServer();
+            web.UseEnvironment("Production");
+            web.ConfigureServices(services =>
+            {
+                services.AddApiEnvelope();
+                services.AddRouting();
+                services.AddLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.AddProvider(recorder);
+                    logging.SetMinimumLevel(LogLevel.Trace);
+                    logging.AddConfiguration(configuration);
+                });
+            });
+            web.Configure(app =>
+            {
+                app.UseApiEnvelope();
+                app.UseRouting();
+                app.UseEndpoints(endpoints =>
+                {
+                    endpoints.MapPost("/projects", void (CreateProject body) =>
+                            throw new AppException(
+                                ErrorCodes.ValidationFailed,
+                                StatusCodes.Status400BadRequest,
+                                new[]
+                                {
+                                    new ErrorDetail("title", ValidationErrorCodes.Required),
+                                }))
+                        .WithApiEnvelope();
+                });
+            });
+        }).Start();
+
+        return (host, recorder, configuration, settings);
+    }
+
+    /// <summary>
+    /// Unlike <c>AddInMemoryCollection</c> — whose provider snapshots its data once at
+    /// construction and never re-reads it — this re-reads <paramref name="data"/> on every
+    /// <see cref="Load"/>, so mutating the dictionary and then calling
+    /// <see cref="IConfigurationRoot.Reload"/> behaves like a configuration file changing on
+    /// disk and being picked up on the next read.
+    /// </summary>
+    private sealed class ReloadableConfigurationProvider(IDictionary<string, string?> data)
+        : ConfigurationProvider
+    {
+        public override void Load() =>
+            Data = new Dictionary<string, string?>(data, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class ReloadableConfigurationSource(IDictionary<string, string?> data) : IConfigurationSource
+    {
+        public IConfigurationProvider Build(IConfigurationBuilder builder) =>
+            new ReloadableConfigurationProvider(data);
+    }
+
     private static IHost CreateHostWithThrowingLogger() =>
         new HostBuilder().ConfigureWebHost(web =>
         {
@@ -221,7 +365,8 @@ public sealed class ErrorLoggingTests
             });
         }).Start();
 
-    private static (IHost Host, RecordingLoggerProvider Recorder) CreateHost()
+    private static (IHost Host, RecordingLoggerProvider Recorder) CreateHost(
+        Action<ILoggingBuilder>? configureLogging = null)
     {
         var recorder = new RecordingLoggerProvider();
 
@@ -238,6 +383,7 @@ public sealed class ErrorLoggingTests
                     logging.ClearProviders();
                     logging.AddProvider(recorder);
                     logging.SetMinimumLevel(LogLevel.Trace);
+                    configureLogging?.Invoke(logging);
                 });
             });
             web.Configure(app =>

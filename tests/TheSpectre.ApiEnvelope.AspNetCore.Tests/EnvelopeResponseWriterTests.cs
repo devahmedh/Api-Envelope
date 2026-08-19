@@ -19,10 +19,10 @@ public sealed class EnvelopeResponseWriterTests
     {
         var context = new DefaultHttpContext
         {
-            // A real host always populates this; WriteAsync now resolves ILoggerFactory from it
-            // to log the failure. An empty container is enough — no ILoggerFactory registered
-            // means EnvelopeResponseWriter.Log finds none and skips logging, which is exactly
-            // what these tests (response body/status/headers only) want.
+            // A real host always populates this; WriteAsync now resolves the cached EnvelopeLoggers
+            // from it to log the failure. An empty container is enough — no EnvelopeLoggers
+            // registered means EnvelopeResponseWriter.Log finds none and skips logging, which is
+            // exactly what these tests (response body/status/headers only) want.
             RequestServices = new ServiceCollection().BuildServiceProvider(),
         };
         context.Response.Body = new MemoryStream();
