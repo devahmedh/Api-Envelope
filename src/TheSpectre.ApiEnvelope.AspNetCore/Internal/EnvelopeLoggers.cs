@@ -18,13 +18,8 @@ namespace TheSpectre.ApiEnvelope.AspNetCore.Internal;
 /// </remarks>
 internal sealed class EnvelopeLoggers
 {
-    // Public, not internal, despite the type itself being internal: the built-in DI container's
-    // default constructor discovery (Type.GetConstructors()) only sees public constructors, so
-    // TryAddSingleton<EnvelopeLoggers>() cannot resolve this type otherwise. The rest of this
-    // library's internal, DI-resolved types (ApiEnvelopeResultFilter, ApiEnvelopeExceptionHandler)
-    // follow the same pattern.
     /// <param name="factory">The factory this instance's loggers are resolved from.</param>
-    public EnvelopeLoggers(ILoggerFactory factory)
+    internal EnvelopeLoggers(ILoggerFactory factory)
     {
         Validation = factory.CreateLogger(LoggerCategories.Validation);
         StatusCode = factory.CreateLogger(LoggerCategories.StatusCode);
