@@ -12,18 +12,18 @@ internal sealed class ApiEnvelopeExceptionHandler : IExceptionHandler
     private readonly ApiEnvelopeOptions _options;
     private readonly IHostEnvironment _environment;
     private readonly IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> _json;
-    private readonly ILogger<ApiEnvelopeExceptionHandler> _logger;
+    private readonly ILogger _logger;
 
     public ApiEnvelopeExceptionHandler(
         IOptions<ApiEnvelopeOptions> options,
         IHostEnvironment environment,
         IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> json,
-        ILogger<ApiEnvelopeExceptionHandler> logger)
+        ILoggerFactory loggerFactory)
     {
         _options = options.Value;
         _environment = environment;
         _json = json;
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger(LoggerCategories.Exception);
     }
 
     public async ValueTask<bool> TryHandleAsync(
@@ -66,14 +66,9 @@ internal sealed class ApiEnvelopeExceptionHandler : IExceptionHandler
 
         var (statusCode, errorCode) = ExceptionStatusMap.Resolve(exception, _options);
 
-        _logger.LogError(
-            exception,
-            "Request {Method} {Path} failed with {ErrorCode}. CorrelationId {CorrelationId}.",
-            context.Request.Method,
-            context.Request.Path,
-            errorCode,
-            context.GetCorrelationId());
-
+        // Not logged here. EnvelopeResponseWriter records every error envelope, so logging
+        // here as well would enter each exception twice — and only the writer knows whether
+        // this failure is a validation result, which belongs in a different category.
         await EnvelopeResponseWriter.WriteAsync(
             context,
             statusCode,
@@ -81,7 +76,8 @@ internal sealed class ApiEnvelopeExceptionHandler : IExceptionHandler
             ResolveMessage(exception),
             (exception as AppException)?.Details,
             _json.Value.SerializerOptions,
-            _options.CorrelationIdHeaderName);
+            _options.CorrelationIdHeaderName,
+            exception);
 
         return true;
     }
