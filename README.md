@@ -512,7 +512,7 @@ The `Exception` category is not exclusively `Error`: a cancelled client request 
 
 **A validation failure is not an error.** It logs at `Information` with no exception attached, because a user mistyping a form is not a fault and a stack trace from a validation filter describes this library rather than the input. Raise the category to `Error` if you want them back in the error stream.
 
-**Response bodies are never logged.** A log store has a different audience and retention period than a response. What this library *composes* into a log line is which rule was broken — field, key, count — never the submitted value. The one channel outside that guarantee is the `Exception` category: it forwards a third-party exception object, and this library does not control what that exception's own message contains.
+**Response bodies are never logged.** A log store has a different audience and retention period than a response. What this library *composes* into a log line is which rule was broken — field, key, count — never the submitted value. Two things sit outside that guarantee. The `Exception` category forwards a third-party exception object, and this library does not control what that exception's own message contains. And a field name is whatever the model binder produced — for dictionary or collection binding, that path embeds the key the caller sent.
 
 ### On .NET 8 and .NET 9, silence the framework's duplicate
 
