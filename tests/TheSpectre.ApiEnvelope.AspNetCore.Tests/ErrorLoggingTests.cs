@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -138,6 +140,61 @@ public sealed class ErrorLoggingTests
             Is.False,
             "A submitted value reached a log entry.");
     }
+
+    /// <summary>
+    /// Logging is a diagnostic aid, not part of the response contract. A host-registered
+    /// <see cref="ILoggerProvider"/> that throws (a remote sink failing on a transient network
+    /// error, for instance) must not be able to take the error-response path down with it — the
+    /// caller must still receive the complete, correct envelope.
+    /// </summary>
+    [Test]
+    public async Task LoggerProviderThatThrows_StillDeliversTheCompleteErrorEnvelope()
+    {
+        using var host = CreateHostWithThrowingLogger();
+
+        var response = await host.GetTestClient().GetAsync("/conflict");
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var root = document.RootElement;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+            Assert.That(root.GetProperty("isSuccess").GetBoolean(), Is.False);
+            Assert.That(root.GetProperty("statusCode").GetInt32(), Is.EqualTo(409));
+            Assert.That(root.GetProperty("errorCode").GetString(), Is.EqualTo("PROJECT_CODE_TAKEN"));
+        });
+    }
+
+    private static IHost CreateHostWithThrowingLogger() =>
+        new HostBuilder().ConfigureWebHost(web =>
+        {
+            web.UseTestServer();
+            web.UseEnvironment("Production");
+            web.ConfigureServices(services =>
+            {
+                services.AddApiEnvelope();
+                services.AddRouting();
+                services.AddLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.AddProvider(new ThrowingLoggerProvider());
+                    logging.SetMinimumLevel(LogLevel.Trace);
+                });
+            });
+            web.Configure(app =>
+            {
+                app.UseApiEnvelope();
+                app.UseRouting();
+                app.UseEndpoints(endpoints =>
+                {
+                    endpoints.MapGet("/conflict",
+                            void () => throw new AppException(
+                                "PROJECT_CODE_TAKEN", statusCode: StatusCodes.Status409Conflict))
+                        .WithApiEnvelope();
+                });
+            });
+        }).Start();
 
     private static (IHost Host, RecordingLoggerProvider Recorder) CreateHost()
     {

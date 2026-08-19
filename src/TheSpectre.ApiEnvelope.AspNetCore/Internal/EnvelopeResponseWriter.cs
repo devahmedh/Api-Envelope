@@ -39,7 +39,7 @@ internal static class EnvelopeResponseWriter
     {
         var correlationId = context.GetCorrelationId();
 
-        Log(context, statusCode, errorCode, details, exception, correlationId);
+        TryLog(context, statusCode, errorCode, details, exception, correlationId);
 
         var response = ApiResponse.Failure(
             errorCode,
@@ -64,6 +64,34 @@ internal static class EnvelopeResponseWriter
     }
 
     /// <summary>
+    /// Runs <see cref="Log"/> with every failure isolated from it. Logging is a diagnostic aid,
+    /// not part of the contract with the caller: <see cref="WriteAsync"/> is the single place an
+    /// error envelope is written, and nothing about recording the failure — a null
+    /// <see cref="HttpContext.RequestServices"/>, or a host-registered
+    /// <see cref="ILoggerProvider"/> that throws — may be allowed to cost the caller their
+    /// response.
+    /// </summary>
+    private static void TryLog(
+        HttpContext context,
+        int statusCode,
+        string errorCode,
+        IReadOnlyList<ErrorDetail>? details,
+        Exception? exception,
+        string correlationId)
+    {
+        try
+        {
+            Log(context, statusCode, errorCode, details, exception, correlationId);
+        }
+        catch (Exception)
+        {
+            // There is nowhere to report a logging failure except the logging system that just
+            // failed, and the caller's error response matters more than the diagnostic record
+            // of it. Swallowed deliberately: see the remarks on TryLog.
+        }
+    }
+
+    /// <summary>
     /// Routes the failure to one of three categories. The discriminator is the error code, not
     /// the exception type: a validation failure arrives as a thrown <see cref="AppException"/>
     /// too, and classifying it by type would keep a user's form mistake in the error stream.
@@ -76,7 +104,7 @@ internal static class EnvelopeResponseWriter
         Exception? exception,
         string correlationId)
     {
-        var factory = context.RequestServices.GetService<ILoggerFactory>();
+        var factory = context.RequestServices?.GetService<ILoggerFactory>();
 
         if (factory is null)
         {
