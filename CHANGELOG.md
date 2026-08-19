@@ -48,9 +48,11 @@ exception the same way. A user mistyping a form was therefore indistinguishable 
 fault on a dashboard, and alerting built on error rate fired on people filling in forms badly. The
 stack trace recorded where this library threw, never why the input was rejected.
 
-They now log at `Information`, under `TheSpectre.ApiEnvelope.Validation`, with the failed fields
-and their keys and no exception attached. Every other `AppException` — a conflict, an
-authorisation failure — is unchanged.
+They now log at `Information`, under `TheSpectre.ApiEnvelope.Validation`, when the exception
+carries at least one detail — with the failed fields and their keys and no exception attached. A
+`VALIDATION_FAILED` `AppException` thrown with no details still logs at `Error` under
+`TheSpectre.ApiEnvelope.Exception`, like any other `AppException`. Every other `AppException` — a
+conflict, an authorisation failure — is unchanged.
 
 **On .NET 10, you will see your error rate drop.** That is the point, but a metric falling with no
 incident behind it is worth expecting. To put validation failures back in the error stream:
@@ -73,8 +75,14 @@ now redundant — which is what makes silencing it safe:
 { "Logging": { "LogLevel": { "Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware": "None" } } }
 ```
 
-An unhandled exception still reaches `TheSpectre.ApiEnvelope.Exception` at `Error` with the
-exception attached. Nothing is lost.
+A handled exception still reaches `TheSpectre.ApiEnvelope.Exception` at `Error` with the
+exception attached — but silencing the whole category also drops two framework warnings this
+library does not reproduce: "The response has already started, the error handler will not be
+executed." and "An exception was thrown attempting to execute the error handler." Neither is
+replaced here, so an exception thrown after the response has started (streaming, SSE, a chunked
+write), or a failure inside the error-writing path itself, now logs nothing. Filter by `EventId`
+at the provider instead of the category — Serilog and NLog both support it — to remove only
+`UnhandledException` and keep the other two.
 
 **The exception logger category moved.** It was
 `TheSpectre.ApiEnvelope.AspNetCore.Internal.ApiEnvelopeExceptionHandler` — an internal type name,

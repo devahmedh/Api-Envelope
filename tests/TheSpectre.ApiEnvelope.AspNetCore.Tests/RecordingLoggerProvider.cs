@@ -26,7 +26,6 @@ public sealed class RecordingLoggerProvider : ILoggerProvider
 
         // Every level is enabled here so a test can assert that an entry was NOT written
         // because of the writer's own routing, never because the provider filtered it out.
-        // Level filtering is exercised separately through the host's Logging configuration.
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(

@@ -141,6 +141,31 @@ public sealed class ErrorLoggingTests
             "A submitted value reached a log entry.");
     }
 
+#if NET8_0
+    /// <summary>
+    /// Pins the exact framework category name the README instructs operators to paste into
+    /// <c>appsettings.json</c> to silence the framework's duplicate error entry. Nothing else in
+    /// this suite verifies that string, so a framework rename would break the README's advice
+    /// silently instead of failing a test. Net8.0-only: net10.0 suppresses this framework log for
+    /// handled exceptions (see the .NET 10 breaking-change note this library's own docs link to),
+    /// so the category never appears there for this scenario.
+    /// </summary>
+    [Test]
+    public async Task UnhandledException_FrameworkLogsUnderTheDocumentedExceptionHandlerMiddlewareCategory()
+    {
+        var (host, recorder) = CreateHost();
+        using (host)
+        {
+            await host.GetTestClient().GetAsync("/conflict");
+        }
+
+        var entry = recorder.Entries.SingleOrDefault(e =>
+            e.Category == "Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware");
+
+        Assert.That(entry, Is.Not.Null);
+    }
+#endif
+
     /// <summary>
     /// Logging is a diagnostic aid, not part of the response contract. A host-registered
     /// <see cref="ILoggerProvider"/> that throws (a remote sink failing on a transient network
