@@ -15,6 +15,15 @@ whether or not a given release touched a particular package.
 
 ## [1.2.0]
 
+**If you are coming from 1.0.0, this release contains more than the section below.** 1.1.0 was
+built and tested but never published to `latest`, so upgrading from 1.0.0 also brings everything in
+[1.1.0](https://github.com/devahmedh/Api-Envelope/blob/production/CHANGELOG.md#110) — the startup
+warning for diverging JSON options, and paged query support. It also
+brings a package that has never appeared on nuget.org before:
+**`TheSpectre.ApiEnvelope.EntityFrameworkCore`**, which adds `GetPagedAsync` over `IQueryable<T>`
+and is the fifth package in the family. Nothing below is affected by which version you are coming
+from; this note only tells you what else arrives with it.
+
 ### Added
 
 **`AddApiEnvelopeJson(...)`** — one registration call that applies a `JsonSerializerOptions`
