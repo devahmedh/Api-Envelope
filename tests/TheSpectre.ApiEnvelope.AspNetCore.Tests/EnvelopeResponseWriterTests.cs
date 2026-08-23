@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using TheSpectre.ApiEnvelope.AspNetCore.Internal;
 
@@ -16,7 +17,14 @@ public sealed class EnvelopeResponseWriterTests
 
     private static HttpContext CreateContext()
     {
-        var context = new DefaultHttpContext();
+        var context = new DefaultHttpContext
+        {
+            // A real host always populates this; WriteAsync now resolves the cached EnvelopeLoggers
+            // from it to log the failure. An empty container is enough — no EnvelopeLoggers
+            // registered means EnvelopeResponseWriter.Log finds none and skips logging, which is
+            // exactly what these tests (response body/status/headers only) want.
+            RequestServices = new ServiceCollection().BuildServiceProvider(),
+        };
         context.Response.Body = new MemoryStream();
         context.Items[CorrelationId.ItemsKey] = TraceId;
         return context;

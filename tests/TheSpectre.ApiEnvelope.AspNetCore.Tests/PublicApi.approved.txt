@@ -26,6 +26,7 @@ namespace TheSpectre.ApiEnvelope.AspNetCore
     {
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddApiEnvelope(this Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddApiEnvelope(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<TheSpectre.ApiEnvelope.AspNetCore.ApiEnvelopeOptions> configure) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddApiEnvelopeJson(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<System.Text.Json.JsonSerializerOptions> configure) { }
     }
     public static class HttpContextCorrelationIdExtensions
     {

@@ -1,0 +1,7 @@
+namespace TheSpectre.ApiEnvelope
+{
+    public static class PagedResultQueryableExtensions
+    {
+        public static System.Threading.Tasks.Task<TheSpectre.ApiEnvelope.PagedResult<T>> GetPagedAsync<T>(this System.Linq.IQueryable<T> query, int page, int pageSize, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

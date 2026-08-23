@@ -48,6 +48,7 @@ That's all most apps need — it brings the core package with it.
 | `TheSpectre.ApiEnvelope.AspNetCore` | The middleware and filters. **Zero package dependencies** — framework reference only. |
 | `TheSpectre.ApiEnvelope.FluentValidation` | Turn FluentValidation failures into error keys. |
 | `TheSpectre.ApiEnvelope.DataAnnotations` | Same, for `[Required]`, `[StringLength]`, `[Range]`. **Zero dependencies.** |
+| `TheSpectre.ApiEnvelope.EntityFrameworkCore` | Asynchronous paging for database queries. |
 | `thespectre-apienvelope-types` (npm) | TypeScript types for the client. |
 
 Targets **.NET 8** and **.NET 10**.
@@ -112,6 +113,53 @@ Both produce byte-identical responses:
 
 Minimal APIs need `.WithApiEnvelope()` once at the root — MVC filters register application-wide, minimal APIs have no equivalent global hook.
 
+### Which JSON options are read
+
+ASP.NET Core has **two unrelated JSON option objects**, and the envelope reads whichever one belongs to the pipeline that produced the response:
+
+| Producing the response | Configure it with | Object |
+|---|---|---|
+| Controllers, and DataAnnotations `details[].field` paths | `AddControllers().AddJsonOptions(…)` | `Microsoft.AspNetCore.Mvc.JsonOptions` |
+| Minimal APIs, error envelopes, status-code envelopes | `builder.Services.ConfigureHttpJsonOptions(…)` | `Microsoft.AspNetCore.Http.Json.JsonOptions` |
+
+This matters because writing the envelope **bypasses MVC's output formatters by design** — that is what makes a controller and a minimal API produce byte-identical bytes. Bypassing the formatter also bypasses everything registered on it, so the envelope has to read MVC's options directly. A converter registered on only one of the two objects therefore applies to only one half of your API:
+
+```csharp
+// A converter every response must honour, in an app with both controllers and minimal APIs:
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter()));
+
+builder.Services.ConfigureHttpJsonOptions(
+    o => o.SerializerOptions.Converters.Add(new UtcDateTimeJsonConverter()));
+```
+
+`UseApiEnvelope()` compares the two at startup and logs one warning when an application hosting controllers finds them diverging in **converters**, **`PropertyNamingPolicy`** or **`DefaultIgnoreCondition`** — the three settings that change what a client actually receives:
+
+```
+warn: TheSpectre.ApiEnvelope.AspNetCore
+      MVC and minimal-API JSON options diverge, so controllers and minimal-API endpoints in
+      this application will not serialise identically: converter 'UtcDateTimeJsonConverter' is
+      registered on AddControllers().AddJsonOptions(...) but not on ConfigureHttpJsonOptions(...).
+```
+
+A minimal-API-only application never sees this warning: it has no MVC pipeline for the options to disagree with.
+
+> The failure this replaces was silent. A `DateTime` converter that pins values to UTC, registered the documented MVC way, was skipped for enveloped responses — so a client at UTC+3 read every calendar date one day early. Nothing threw, and the build was green.
+
+### Configuring JSON once
+
+Controllers and minimal APIs read different `JsonSerializerOptions` objects. Register on both in one call:
+
+```csharp
+builder.Services.AddApiEnvelopeJson(json =>
+{
+    json.Converters.Add(new UtcDateTimeJsonConverter());
+    json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+});
+```
+
+This is a convenience over the framework's own two objects, not a third place to configure JSON. The envelope has no serializer options of its own — the payload is yours, and it should serialise the way your application serialises it everywhere else. In a minimal-API-only application the MVC half is inert.
+
 ---
 
 ## The envelope
@@ -171,6 +219,35 @@ public sealed class ProjectCodeTakenException : AppException
     public ProjectCodeTakenException(string code)
         : base("PROJECT_CODE_TAKEN", $"code '{code}' already exists", 409) { }
 }
+```
+
+### If the application already has an `IExceptionHandler`
+
+Register `AddApiEnvelope()` **before** any `AddExceptionHandler(...)` the application already has. Handlers run in registration order and the first one returning `true` wins, so a catch-all registered ahead of the envelope claims every exception — including `AppException`, whose status code goes with it. A 401 login failure arrives at the client as a 500, and the package looks correctly installed the whole time.
+
+The other fix, when the existing handler must keep running first, is to make it log-only:
+
+```csharp
+public sealed class LoggingExceptionHandler(ILogger<LoggingExceptionHandler> logger)
+    : IExceptionHandler
+{
+    public ValueTask<bool> TryHandleAsync(HttpContext context, Exception ex, CancellationToken ct)
+    {
+        logger.LogError(ex, "Unhandled exception on {Path}", context.Request.Path);
+
+        // false — record the failure, let the envelope write the response.
+        return ValueTask.FromResult(false);
+    }
+}
+```
+
+`UseApiEnvelope()` warns at startup when it finds a handler registered ahead of its own:
+
+```
+warn: TheSpectre.ApiEnvelope.AspNetCore
+      ProblemDetailsExceptionHandler is registered as an IExceptionHandler before
+      AddApiEnvelope(), so it runs first and any exception it handles never reaches the
+      envelope — AppException included, which means its status code is lost too.
 ```
 
 ### Responses no endpoint produced
@@ -285,6 +362,35 @@ builder.Services.AddApiEnvelopeDataAnnotations();
 
 This also replaces `[ApiController]`'s automatic `ValidationProblemDetails` response, which is server-composed English prose.
 
+#### `ErrorMessage` must be `SCREAMING_SNAKE_CASE`
+
+DataAnnotations has no slot for an error key, so the key travels in `ErrorMessage` — the same property that normally holds prose. Only `^[A-Z][A-Z0-9_]*$` is read as a key. **Anything else is discarded** and replaced with a key inferred from the failing attribute, because server-authored English must never reach a client.
+
+```csharp
+[Required(ErrorMessage = "EMAIL_INVALID")]   // preserved verbatim
+[Required(ErrorMessage = "EmailInvalid")]    // discarded → "REQUIRED"
+```
+
+```jsonc
+{ "field": "email", "errorCode": "EMAIL_INVALID" }   // the key you wrote
+{ "field": "email", "errorCode": "REQUIRED" }        // inferred; your key never shipped
+```
+
+The discarded case is the dangerous one: the response still carries a plausible key, just not yours, so nothing looks wrong until a translation lookup misses in the running client. Catch it with one test:
+
+```csharp
+[Test]
+public void AllValidationAttributes_UseKeysNotProse()
+{
+    var findings = AttributeErrorCodeAudit.FindAttributesWithProseErrorMessages(
+        typeof(CreateProject).Assembly);
+
+    Assert.That(findings, Is.Empty);
+}
+```
+
+> **This rule is DataAnnotations-only.** FluentValidation has a real error-code slot, so the key goes in `.WithErrorCode(...)` and survives in any casing; `ErrorMessage` there is ignored entirely rather than pattern-matched. A FluentValidation key that never arrives is almost always a key written into `.WithMessage(...)` instead — which `ValidatorErrorCodeAudit` above catches, because the rule is then left carrying FluentValidation's `NotEmptyValidator`-style default.
+
 > **Both integrations produce identical `details[]`** — same field names, same keys, same `params` keys — enforced by a shared test suite run against both. Your client has one contract regardless of which library an API happens to use.
 
 ### Built-in keys
@@ -322,13 +428,22 @@ api.MapGet("/projects", (AppDbContext db, int page = 1, int pageSize = 20) =>
 
 `pageCount`, `firstRowOnPage` and `lastRowOnPage` are computed and sent, so no frontend re-derives `Math.ceil(rowCount / pageSize)` and gets the off-by-one wrong.
 
-> **`GetPaged` on `IQueryable<T>` runs synchronously** and makes two database round-trips. For a hot path, query asynchronously yourself and construct `PagedResult<T>` directly:
->
-> ```csharp
-> var count = await query.CountAsync(ct);
-> var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-> return new PagedResult<Project>(items, new PaginationData(page, pageSize, count));
-> ```
+### Database queries
+
+`GetPaged` on `IQueryable<T>` runs **synchronously** — two blocking round-trips. The core package takes no dependency on Entity Framework Core, so it cannot call `CountAsync`/`ToListAsync`. Install `TheSpectre.ApiEnvelope.EntityFrameworkCore` for the asynchronous version:
+
+```bash
+dotnet add package TheSpectre.ApiEnvelope.EntityFrameworkCore
+```
+
+```csharp
+api.MapGet("/projects", (AppDbContext db, int page = 1, int pageSize = 20, CancellationToken ct = default) =>
+    db.Projects.OrderBy(p => p.Id).GetPagedAsync(page, pageSize, ct));
+```
+
+It returns the same `PagedResult<T>`, so the wire shape is unchanged. The extension lives in the `TheSpectre.ApiEnvelope` namespace, so no second `using` is needed.
+
+Keep using the synchronous `GetPaged` for in-memory sequences — it is not a database call and has nothing to await.
 
 ---
 
@@ -345,6 +460,79 @@ The id is pushed into the `ILogger` scope, so every log line written during the 
 ```csharp
 app.MapGet("/whoami", (HttpContext ctx) => ctx.GetCorrelationId());
 ```
+
+### Request data on a failure
+
+Every error response already logs the method, path, `errorCode` and correlation id — and, when there is one, the exception itself. What is not logged is the **request** that caused it — the equivalent of AutoWrapper's `LogRequestDataOnException`, and the one piece of it worth missing during support triage. That belongs to your logging pipeline rather than this library, and Serilog already has the hook:
+
+```csharp
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        // Explicit: the correlation-id logger scope is opened inside UseApiEnvelope(), and
+        // this line is written after it closes — so it would not inherit the id otherwise.
+        diagnosticContext.Set("CorrelationId", httpContext.GetCorrelationId());
+        diagnosticContext.Set("Endpoint", httpContext.GetEndpoint()?.DisplayName);
+        diagnosticContext.Set("QueryString", httpContext.Request.QueryString.Value);
+        diagnosticContext.Set("User", httpContext.User.Identity?.Name);
+    };
+});
+
+app.UseApiEnvelope();   // inside the request-logging middleware
+```
+
+The completion line and the envelope's own error line now share a correlation id, so one query returns both. Serilog levels the completion line by status code, so a 409 `AppException` stays at Information while a 500 is raised to Error.
+
+The **request body** is a deliberate second step: it is not readable after model binding without `HttpRequest.EnableBuffering()` and a manual rewind, and it is the single most likely place in a request to find a password, a token or personal data. Log it on failure only, and redact before it reaches a sink — the same reasoning that makes response-body logging a non-goal here applies to it.
+
+---
+
+## Logging
+
+Every error response is recorded under one of three categories. The category, not an option, is how you control what is logged — so it changes per environment from `appsettings.json` without a redeploy.
+
+| Category | What it records | Default |
+|---|---|---|
+| `TheSpectre.ApiEnvelope.Validation` | A validation failure that carries at least one field-level detail, with the failed fields and their keys | `Information` — on |
+| `TheSpectre.ApiEnvelope.StatusCode` | A bare status-code envelope: routing 404, authentication 401 | `Debug` — off |
+| `TheSpectre.ApiEnvelope.Exception` | Every other failure, with the exception attached | `Error` — on |
+
+The `Exception` category is not exclusively `Error`: a cancelled client request logs there at `Information` with no exception attached, and an exception on a bypassed path (`/health`, `/metrics`, a `[NoEnvelope]` endpoint) logs there at `Warning` — the one entry that exists so a failure outside the envelope still leaves a trace. Raising that category's minimum above `Warning` silences it.
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "TheSpectre.ApiEnvelope.StatusCode": "Information"
+    }
+  }
+}
+```
+
+**A validation failure is not an error.** It logs at `Information` with no exception attached, because a user mistyping a form is not a fault and a stack trace from a validation filter describes this library rather than the input. Raise the category to `Error` if you want them back in the error stream.
+
+**Response bodies are never logged.** A log store has a different audience and retention period than a response. What this library *composes* into a log line is which rule was broken — field, key, count — never the submitted value. Two things sit outside that guarantee. The `Exception` category forwards a third-party exception object, and this library does not control what that exception's own message contains. And a field name is whatever the model binder produced — for dictionary or collection binding, that path embeds the key the caller sent.
+
+### On .NET 8 and .NET 9, silence the framework's duplicate
+
+ASP.NET Core's own exception handler middleware writes its own `Error` entry, with the exception attached, for every exception it routes to an `IExceptionHandler` — this library's included. [.NET 10 suppresses that for handled exceptions](https://learn.microsoft.com/aspnet/core/breaking-changes/10/exception-handler-diagnostics-suppressed); .NET 8 and 9 always emit it.
+
+So on .NET 8 and 9, every error is recorded twice — once by this library, once by the framework — and a validation failure still produces a framework `Error` entry with a stack trace, no matter what category you put it in.
+
+Since this library now records every error envelope itself, the framework's entry is redundant. Silence it:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware": "None"
+    }
+  }
+}
+```
+
+Silencing the whole category costs more than the duplicate, though. A handled exception still reaches `TheSpectre.ApiEnvelope.Exception` at `Error` with the exception attached, but the same middleware also logs two warnings this library does not reproduce: *"The response has already started, the error handler will not be executed."* and *"An exception was thrown attempting to execute the error handler."* `ApiEnvelopeExceptionHandler` returns `false` on `Response.HasStarted` without logging — and in practice that branch never runs, because the framework performs its own `HasStarted` check and rethrows before invoking any `IExceptionHandler`. So an exception thrown after the response has started (streaming, SSE, a chunked write), or a failure inside the error-writing path itself, would now log nothing at all. To drop only the duplicate, filter by `EventId` at the provider instead of silencing the category — Serilog and NLog both support this — and remove only `UnhandledException`. On .NET 10 this section does not apply.
 
 ---
 
@@ -460,6 +648,7 @@ The types are verified in CI against the same fixture files the .NET tests asser
 | `.AspNetCore` — MVC | ❌ MVC itself is not AOT-compatible |
 | `.FluentValidation` | ❌ rules are built from expression trees |
 | `.DataAnnotations` | ❌ attribute reflection is the mechanism |
+| `.EntityFrameworkCore` | ❌ Entity Framework Core itself is not AOT-compatible |
 
 **You never declare the wrapper type.** The envelope's own fields are written directly with `Utf8JsonWriter`; only `result` is delegated to your serializer, resolved from the payload's own contract. So this is all you need:
 
@@ -475,7 +664,7 @@ CI publishes a real native binary and curls it on every commit, so this is verif
 ## Non-goals
 
 - **No RFC 7807 `ProblemDetails`.** It centres on human-readable `title` and `detail` — exactly what this library exists to keep off the wire.
-- **No response body logging.** Responses carry business content; logging them by default is a data-exposure default.
+- **No response body logging.** Responses carry business content; logging them by default is a data-exposure default. Request diagnostics on a failure are a different question, and a supported one — see [Request data on a failure](#request-data-on-a-failure).
 - **No content negotiation.** The envelope is always `application/json`.
 - **No C# client unwrapper.** The envelope is trivial to deserialize, and the intended clients are TypeScript.
 
@@ -487,9 +676,11 @@ Work flows in one direction: **`development` → `testing` → `production`**. T
 
 | Branch | Version | NuGet | npm dist-tag |
 |---|---|---|---|
-| `development` | `1.0.0-alpha.<build>` | prerelease, published on demand | `alpha` |
-| `testing` | `1.0.0-beta.<build>` | prerelease, published on push | `beta` |
-| `production` | `1.0.0` | release, published on push | `latest` |
+| `development` | `<version>-alpha.<build>` | prerelease, published on demand | `alpha` |
+| `testing` | `<version>-beta.<build>` | prerelease, published on push | `beta` |
+| `production` | `<version>` | release, published on push | `latest` |
+
+`<version>` is `VersionPrefix` in `Directory.Build.props` — the single place the number is set, so bumping it there is the only step a release needs and this table can never fall behind it again.
 
 Prereleases are hidden from NuGet search unless you tick *Include prerelease*, and `npm install` keeps giving you the `latest` release — a prerelease is only ever installed by asking for it explicitly:
 
@@ -510,7 +701,7 @@ The envelope shape is the public API. Breaking it breaks every consumer silently
 - **Minor** — a new property omitted when null, a new type, member, option or package.
 - **Patch** — anything touching neither the wire shape nor the public API.
 
-This is enforced, not just documented. Byte-exact fixture files pin the JSON, approval files pin every public member, and CI fails any pull request that edits either without an explicit `BREAKING CHANGE:` footer or a `semver:` label. All packages version in lockstep.
+This is enforced, not just documented. Byte-exact fixture files pin the JSON, the core package's approval file pins every public member, and CI fails any pull request that edits either without an explicit `BREAKING CHANGE:` footer or a `semver:` label. The satellite packages' approval files pin their own public members too, but only through their tests — the pull-request guard does not inspect them. All packages version in lockstep.
 
 ---
 

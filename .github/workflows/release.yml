@@ -3,9 +3,9 @@ name: release
 # Branch-driven versioning. The base version lives in Directory.Build.props as
 # VersionPrefix; the channel suffix is derived from the branch being pushed:
 #
-#   development  ->  1.0.0-alpha.<run>    prerelease, npm dist-tag "alpha"
-#   testing      ->  1.0.0-beta.<run>     prerelease, npm dist-tag "beta"
-#   production   ->  1.0.0                release,    npm dist-tag "latest"
+#   development  ->  <prefix>-alpha.<run>    prerelease, npm dist-tag "alpha"
+#   testing      ->  <prefix>-beta.<run>     prerelease, npm dist-tag "beta"
+#   production   ->  <prefix>                release,    npm dist-tag "latest"
 #
 # development does not publish automatically — it packs and uploads the alpha as a
 # workflow artifact. Versions on nuget.org can never be deleted, only unlisted, so a
@@ -123,11 +123,12 @@ jobs:
       - name: Run the full test suite
         run: dotnet test --no-build -c Release -p:VersionSuffix=${{ steps.version.outputs.suffix }} --verbosity normal
 
-      - name: Pack all four packages
+      - name: Pack all five packages
         run: |
           rm -rf artifacts
           for p in TheSpectre.ApiEnvelope TheSpectre.ApiEnvelope.AspNetCore \
-                   TheSpectre.ApiEnvelope.FluentValidation TheSpectre.ApiEnvelope.DataAnnotations; do
+                   TheSpectre.ApiEnvelope.FluentValidation TheSpectre.ApiEnvelope.DataAnnotations \
+                   TheSpectre.ApiEnvelope.EntityFrameworkCore; do
             dotnet pack "src/$p/$p.csproj" -c Release \
               -p:VersionSuffix=${{ steps.version.outputs.suffix }} \
               -o artifacts/local-feed
@@ -148,8 +149,8 @@ jobs:
             echo "$entries" | grep -E '^(lib/|README)'
             count=$((count + 1))
           done
-          if [ "$count" -ne 4 ]; then
-            echo "::error::expected 4 packages, packed $count"
+          if [ "$count" -ne 5 ]; then
+            echo "::error::expected 5 packages, packed $count"
             exit 1
           fi
 
